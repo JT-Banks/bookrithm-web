@@ -24,7 +24,7 @@ export class ApiError extends Error {
     public statusCode: number,
     public errorResponse: ErrorResponse
   ) {
-    super(errorResponse.message);
+    super(errorResponse?.message ?? 'An unknown API error occurred');
     this.name = 'ApiError';
   }
 }
@@ -145,7 +145,12 @@ class ApiClient {
       }
 
       // Try to parse JSON response
-      const data = await response.json();
+      let data: unknown;
+      try {
+        data = await response.json();
+      } catch {
+        data = {};
+      }
 
       // Check if request was successful (2xx status codes)
       if (!response.ok) {
