@@ -32,8 +32,9 @@ export class ApiError extends Error {
 /**
  * Configuration for API requests
  */
-interface RequestConfig extends RequestInit {
-  requiresAuth?: boolean;  // Does this request need a JWT token?
+interface RequestConfig extends Omit<RequestInit, 'headers'> {
+  requiresAuth?: boolean;          // Does this request need a JWT token?
+  headers?: Record<string, string>; // Custom headers (typed for safe spreading)
 }
 
 /**
@@ -116,7 +117,7 @@ class ApiClient {
     const url = `${this.baseUrl}${endpoint}`;
 
     // Prepare headers
-    const requestHeaders: HeadersInit = {
+    const requestHeaders: Record<string, string> = {
       'Content-Type': 'application/json',
       ...headers,
     };
@@ -145,7 +146,10 @@ class ApiClient {
       }
 
       // Try to parse JSON response
-      const data = await response.json();
+      // We read as text first so an empty body (non-204) doesn't throw a SyntaxError.
+      // Think of it like checking if a stream has data before deserializing it.
+      const text = await response.text();
+      const data = text ? JSON.parse(text) : undefined;
 
       // Check if request was successful (2xx status codes)
       if (!response.ok) {
