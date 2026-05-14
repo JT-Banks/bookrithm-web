@@ -25,7 +25,7 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">
+      <body className="min-h-full flex flex-col bg-zinc-950 text-zinc-100">
         {/* GoogleOAuthProvider gives every page access to Google Sign-In */}
         <GoogleOAuthProvider clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!}>
           {/* AuthProvider shares our user state across the whole app */}

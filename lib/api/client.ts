@@ -24,7 +24,7 @@ export class ApiError extends Error {
     public statusCode: number,
     public errorResponse: ErrorResponse
   ) {
-    super(errorResponse.message);
+    super(errorResponse?.message ?? 'An unknown API error occurred');
     this.name = 'ApiError';
   }
 }

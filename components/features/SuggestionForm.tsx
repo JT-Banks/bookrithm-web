@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { suggestionsApi } from '@/lib/api/suggestions';
-import type { SuggestionType } from '@/types/api';
+import { categoriesApi } from '@/lib/api/categories';
+import type { SuggestionType, CategoryResponse } from '@/types/api';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Props
@@ -37,7 +38,10 @@ const SUGGESTION_TYPES: { value: SuggestionType; label: string; description: str
 // SuggestionForm — lets a logged-in user suggest a Category, Trope, or
 // Content Warning. Submissions are queued for AI vetting → admin review.
 //
-// Think of this like a feedback form that POSTs to /suggestions.
+// For the CATEGORY type we fetch the existing taxonomy from GET /categories
+// and show a live combo-box. This prevents accidental duplicates like
+// "darkfantasy", "dark fantasy", "Dark-Fantasy" all being submitted as
+// separate suggestions for the same concept.
 // ─────────────────────────────────────────────────────────────────────────────
 export function SuggestionForm({ bookId }: SuggestionFormProps) {
   // ── Form field state ───────────────────────────────────────────────────────
@@ -45,13 +49,72 @@ export function SuggestionForm({ bookId }: SuggestionFormProps) {
   const [name,        setName]        = useState('');
   const [description, setDescription] = useState('');
 
+  // ── Category autocomplete state ────────────────────────────────────────────
+  // allCategories is loaded once and cached for the lifetime of this form.
+  // Think of it like a local in-memory List<Category> loaded at startup.
+  const [allCategories,     setAllCategories]     = useState<CategoryResponse[]>([]);
+  const [categoriesLoaded,  setCategoriesLoaded]  = useState(false);
+  const [showDropdown,      setShowDropdown]       = useState(false);
+  const comboboxRef = useRef<HTMLDivElement>(null);
+
   // ── Submission state ───────────────────────────────────────────────────────
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMsg,   setSuccessMsg]   = useState<string | null>(null);
   const [errorMsg,     setErrorMsg]     = useState<string | null>(null);
 
+  // ── Load the category taxonomy when the user switches to CATEGORY type ─────
+  // We only fetch once — after that the list is already in allCategories.
+  // Graceful degradation: if the fetch fails we just fall back to plain text.
+  useEffect(() => {
+    if (type !== 'CATEGORY' || categoriesLoaded) return;
+
+    categoriesApi.listCategories()
+      .then((page) => setAllCategories(page.content))
+      .catch(() => {}) // fail silently — form still works without autocomplete
+      .finally(() => setCategoriesLoaded(true));
+  }, [type, categoriesLoaded]);
+
+  // ── Close the dropdown when the user clicks outside the combo-box ──────────
+  // This is the standard "click-outside" pattern — attach a listener to the
+  // document and check whether the click target is inside our wrapper ref.
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (comboboxRef.current && !comboboxRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // ── Derived: matching categories for the current input ────────────────────
+  // Filtered live as the user types. Like a Java Stream.filter() on the list.
+  // Capped at 8 results so the dropdown doesn't overflow.
+  const filteredCategories =
+    type === 'CATEGORY' && name.trim()
+      ? allCategories
+          .filter((c) => c.name.toLowerCase().includes(name.trim().toLowerCase()))
+          .slice(0, 8)
+      : [];
+
+  // ── Derived: does the typed name exactly match an existing category? ───────
+  // Used to show "existing" vs "new" feedback below the input.
+  const exactMatch =
+    type === 'CATEGORY' &&
+    name.trim() !== '' &&
+    allCategories.some((c) => c.name.toLowerCase() === name.trim().toLowerCase());
+
+  // ── Handle type toggle ─────────────────────────────────────────────────────
+  const handleTypeChange = (next: SuggestionType) => {
+    setType(next);
+    setShowDropdown(false);
+    setName('');       // clear the name so the placeholder updates correctly
+    setErrorMsg(null);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setShowDropdown(false);
 
     const trimmedName = name.trim();
     if (!trimmedName) {
@@ -64,8 +127,6 @@ export function SuggestionForm({ bookId }: SuggestionFormProps) {
     setErrorMsg(null);
 
     try {
-      // Build the payload — the backend uses payload.name for dedup checking.
-      // description is optional so we only include it when non-empty.
       const payload: Record<string, string> = { name: trimmedName };
       if (description.trim()) payload.description = description.trim();
 
@@ -76,11 +137,9 @@ export function SuggestionForm({ bookId }: SuggestionFormProps) {
       });
 
       setSuccessMsg('Your suggestion is pending AI review. Thank you!');
-      // Reset the form after a successful submission
       setName('');
       setDescription('');
     } catch (err: unknown) {
-      // Show the API error message if available, otherwise a generic fallback
       const message =
         err instanceof Error ? err.message : 'Could not submit your suggestion. Please try again.';
       setErrorMsg(message);
@@ -100,7 +159,7 @@ export function SuggestionForm({ bookId }: SuggestionFormProps) {
             <button
               key={option.value}
               type="button"
-              onClick={() => setType(option.value)}
+              onClick={() => handleTypeChange(option.value)}
               className={`flex-1 rounded-lg border px-4 py-3 text-left text-sm transition-colors
                 ${type === option.value
                   ? 'border-zinc-400 bg-zinc-800 text-zinc-100'
@@ -115,19 +174,83 @@ export function SuggestionForm({ bookId }: SuggestionFormProps) {
       </div>
 
       {/* ── Name field ── */}
+      {/* For CATEGORY: combo-box with autocomplete against existing taxonomy */}
+      {/* For TROPE / CONTENT_WARNING: plain text input */}
       <div className="flex flex-col gap-1.5">
         <label htmlFor="suggestion-name" className="text-sm font-medium text-zinc-300">
           Name <span className="text-red-400">*</span>
         </label>
-        <input
-          id="suggestion-name"
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder={`e.g. "${SUGGESTION_TYPES.find(t => t.value === type)?.label === 'Category' ? 'Dark Academia' : type === 'TROPE' ? 'Enemies to Lovers' : 'Graphic Violence'}"`}
-          maxLength={100}
-          className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-600 focus:border-zinc-500 focus:outline-none"
-        />
+
+        {type === 'CATEGORY' ? (
+          // ── Combo-box ───────────────────────────────────────────────────────
+          // The wrapper div is what we track for "click outside" detection.
+          <div ref={comboboxRef} className="relative">
+            <input
+              id="suggestion-name"
+              type="text"
+              autoComplete="off"
+              value={name}
+              onChange={(e) => {
+                setName(e.target.value);
+                setShowDropdown(true); // open dropdown as they type
+              }}
+              onFocus={() => { if (name.trim()) setShowDropdown(true); }}
+              onKeyDown={(e) => { if (e.key === 'Escape') setShowDropdown(false); }}
+              placeholder='e.g. "Dark Fantasy", "Cosy Mystery"'
+              maxLength={100}
+              className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-600 focus:border-zinc-500 focus:outline-none"
+            />
+
+            {/* Dropdown — only shown when there are matches */}
+            {showDropdown && filteredCategories.length > 0 && (
+              <ul className="absolute z-10 mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-900 py-1 shadow-xl">
+                {filteredCategories.map((cat) => (
+                  <li key={cat.id}>
+                    <button
+                      type="button"
+                      onMouseDown={(e) => {
+                        // mousedown fires before the input's blur, so prevent
+                        // the input from losing focus before we set the value
+                        e.preventDefault();
+                        setName(cat.name);
+                        setShowDropdown(false);
+                      }}
+                      className="w-full px-3 py-2 text-left text-sm text-zinc-200 hover:bg-zinc-800 transition-colors"
+                    >
+                      {cat.name}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        ) : (
+          // ── Plain text input for Trope / Content Warning ────────────────────
+          <input
+            id="suggestion-name"
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder={type === 'TROPE' ? 'e.g. "Enemies to Lovers"' : 'e.g. "Graphic Violence"'}
+            maxLength={100}
+            className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-600 focus:border-zinc-500 focus:outline-none"
+          />
+        )}
+
+        {/* ── Existing vs new category indicator ── */}
+        {/* This is the key duplicate-prevention UX: users immediately see */}
+        {/* whether their input matches something already in the taxonomy.  */}
+        {type === 'CATEGORY' && name.trim() && (
+          exactMatch ? (
+            <p className="text-xs text-green-400">
+              ✓ Existing category — you&apos;re suggesting this book be tagged with it
+            </p>
+          ) : (
+            <p className="text-xs text-zinc-500">
+              + New category — you&apos;re proposing this be added to the taxonomy
+            </p>
+          )
+        )}
       </div>
 
       {/* ── Description field (optional) ── */}
@@ -139,7 +262,7 @@ export function SuggestionForm({ bookId }: SuggestionFormProps) {
           id="suggestion-desc"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          placeholder="Briefly explain what this means or why it should be added..."
+          placeholder="Briefly explain what this means or why it applies to this book..."
           rows={3}
           maxLength={500}
           className="resize-none rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-600 focus:border-zinc-500 focus:outline-none"
