@@ -9,22 +9,25 @@ import type { UserBookStateResponse, ShelfResponse } from '@/types/api';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ShelfBookCard — displays one entry from a shelf.
-// UserBookStateResponse tells us bookId, bookTitle, position, and when it
-// was added. We link through to the book detail page using bookId.
 // ─────────────────────────────────────────────────────────────────────────────
-function ShelfBookCard({ item, onRemove }: {
+function ShelfBookCard({ item, onRemove, onMarkRead }: {
   item: UserBookStateResponse;
-  onRemove: (bookId: string) => void;
+  onRemove:   (bookId: string) => void;
+  onMarkRead: (bookId: string) => Promise<void>;
 }) {
   const [removing, setRemoving] = useState(false);
+  const [marking,  setMarking]  = useState(false);
 
   const handleRemove = async () => {
     setRemoving(true);
     onRemove(item.bookId);
   };
 
-  // Format the addedAt ISO string into a readable date.
-  // Intl.DateTimeFormat is the browser-native equivalent of Java's DateTimeFormatter.
+  const handleMarkRead = async () => {
+    setMarking(true);
+    try { await onMarkRead(item.bookId); } finally { setMarking(false); }
+  };
+
   const addedDate = new Intl.DateTimeFormat('en-US', {
     month: 'short',
     day: 'numeric',
@@ -34,24 +37,36 @@ function ShelfBookCard({ item, onRemove }: {
   return (
     <div className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900 px-5 py-4">
       <div className="flex flex-col gap-1 min-w-0">
-        {/* Link to the full book detail page */}
         <Link
           href={`/books/${item.bookId}`}
           className="font-medium text-zinc-50 hover:text-white hover:underline truncate"
         >
           {item.bookTitle ?? 'Untitled'}
         </Link>
-        <p className="text-xs text-zinc-500">Added {addedDate}</p>
+        <div className="flex items-center gap-3">
+          <p className="text-xs text-zinc-500">Added {addedDate}</p>
+          {(item.readCount ?? 0) > 0 && (
+            <span className="text-xs text-zinc-600">Read {item.readCount}×</span>
+          )}
+        </div>
       </div>
 
-      {/* Remove button — takes the book off this shelf entirely */}
-      <button
-        onClick={handleRemove}
-        disabled={removing}
-        className="ml-4 shrink-0 text-xs text-zinc-600 hover:text-red-400 transition-colors disabled:opacity-40"
-      >
-        {removing ? 'Removing...' : 'Remove'}
-      </button>
+      <div className="ml-4 shrink-0 flex items-center gap-4">
+        <button
+          onClick={handleMarkRead}
+          disabled={marking}
+          className="text-xs text-zinc-500 hover:text-zinc-200 transition-colors disabled:opacity-40"
+        >
+          {marking ? 'Saving…' : 'Mark read'}
+        </button>
+        <button
+          onClick={handleRemove}
+          disabled={removing}
+          className="text-xs text-zinc-600 hover:text-red-400 transition-colors disabled:opacity-40"
+        >
+          {removing ? 'Removing...' : 'Remove'}
+        </button>
+      </div>
     </div>
   );
 }
@@ -67,12 +82,14 @@ export default function ShelfDetailPage() {
   const { user, isLoading: authLoading } = useAuth();
 
   // ── State ──────────────────────────────────────────────────────────────────
-  const [books,       setBooks]       = useState<UserBookStateResponse[]>([]);
-  const [shelf,       setShelf]       = useState<ShelfResponse | null>(null);
-  const [currentPage, setCurrentPage] = useState(0);
-  const [totalPages,  setTotalPages]  = useState(1);
-  const [isLoading,   setIsLoading]   = useState(true);
-  const [error,       setError]       = useState<string | null>(null);
+  const [books,              setBooks]             = useState<UserBookStateResponse[]>([]);
+  const [shelf,              setShelf]             = useState<ShelfResponse | null>(null);
+  const [currentPage,        setCurrentPage]       = useState(0);
+  const [totalPages,         setTotalPages]        = useState(1);
+  const [isLoading,          setIsLoading]         = useState(true);
+  const [error,              setError]             = useState<string | null>(null);
+  const [isTogglingPrivacy,  setIsTogglingPrivacy] = useState(false);
+  const [isDeleting,         setIsDeleting]        = useState(false);
 
   // ── Auth guard ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -111,19 +128,49 @@ export default function ShelfDetailPage() {
   }, [user, authLoading, shelfId, currentPage]);
 
   // ── Remove a book from this shelf ─────────────────────────────────────────
-  // Optimistic update: remove from local state immediately, then call the API.
-  // "Optimistic" means we assume success and update the UI right away.
-  // If the API call fails, we'd ideally restore the item — keeping it simple here.
   const handleRemove = async (bookId: string) => {
-    // Remove from the displayed list immediately (optimistic)
     setBooks((prev) => prev.filter((b) => b.bookId !== bookId));
     try {
       await shelvesApi.removeBookState(bookId);
     } catch {
-      // If it failed, re-fetch to restore correct state
       shelvesApi.getShelfBooks(shelfId, currentPage)
         .then((data) => setBooks(data.content))
         .catch(() => {});
+    }
+  };
+
+  // ── Mark a book as read ───────────────────────────────────────────────────────────────────────────
+  const handleMarkRead = async (bookId: string) => {
+    await shelvesApi.markAsRead(bookId);
+    // Optimistically increment the local read count so the UI updates instantly
+    setBooks((prev) =>
+      prev.map((b) =>
+        b.bookId === bookId ? { ...b, readCount: (b.readCount ?? 0) + 1 } : b
+      )
+    );
+  };
+
+  // ── Toggle shelf privacy ───────────────────────────────────────────────────────────────────────────
+  const handleTogglePrivacy = async () => {
+    if (!shelf || shelf.isSystem) return;
+    setIsTogglingPrivacy(true);
+    try {
+      const updated = await shelvesApi.updateShelf(shelfId, { isPrivate: !shelf.isPrivate });
+      setShelf(updated);
+    } catch { /* non-critical */ } finally {
+      setIsTogglingPrivacy(false);
+    }
+  };
+
+  // ── Delete custom shelf ───────────────────────────────────────────────────────────────────────────
+  const handleDeleteShelf = async () => {
+    if (!shelf || shelf.isSystem) return;
+    setIsDeleting(true);
+    try {
+      await shelvesApi.deleteShelf(shelfId);
+      router.push('/shelves');
+    } catch {
+      setIsDeleting(false);
     }
   };
 
@@ -146,6 +193,35 @@ export default function ShelfDetailPage() {
           <p className="text-zinc-500 text-sm mt-1">
             {shelf.bookCount} {shelf.bookCount === 1 ? 'book' : 'books'}
           </p>
+        )}
+        {/* Privacy + delete controls for custom shelves only */}
+        {shelf && !shelf.isSystem && (
+          <div className="flex items-center gap-3 mt-3">
+            <button
+              onClick={handleTogglePrivacy}
+              disabled={isTogglingPrivacy}
+              className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition-colors disabled:opacity-40"
+            >
+              {shelf.isPrivate ? (
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+                  <path fillRule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clipRule="evenodd" />
+                </svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+                  <path d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5a3 3 0 016 0v2.25a.75.75 0 001.5 0V5.5A4.5 4.5 0 0010 1z" />
+                </svg>
+              )}
+              {isTogglingPrivacy ? 'Saving…' : shelf.isPrivate ? 'Private' : 'Public'}
+            </button>
+            <span className="text-zinc-700">·</span>
+            <button
+              onClick={handleDeleteShelf}
+              disabled={isDeleting}
+              className="text-xs text-zinc-600 hover:text-red-400 transition-colors disabled:opacity-40"
+            >
+              {isDeleting ? 'Deleting…' : 'Delete shelf'}
+            </button>
+          </div>
         )}
       </div>
 
@@ -188,6 +264,7 @@ export default function ShelfDetailPage() {
                 key={item.bookId}
                 item={item}
                 onRemove={handleRemove}
+                onMarkRead={handleMarkRead}
               />
             ))}
           </div>

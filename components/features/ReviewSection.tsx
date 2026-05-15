@@ -97,9 +97,17 @@ function ReviewCard({ review, isOwn, onEdit, onDelete }: {
     }`}>
       {/* Header row */}
       <div className="flex items-center justify-between">
-        <span className="text-sm font-medium text-zinc-300">
-          {isOwn ? 'Your review' : 'Community review'}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-zinc-300">
+            {isOwn ? 'Your review' : review.isAnonymous ? 'Anonymous' : 'Community review'}
+          </span>
+          {review.isAnonymous && !isOwn && (
+            <span className="text-xs text-zinc-600 italic">identity hidden</span>
+          )}
+          {review.isAnonymous && isOwn && (
+            <span className="rounded-full bg-zinc-800 px-2 py-0.5 text-xs text-zinc-500">anonymous</span>
+          )}
+        </div>
         <span className="text-xs text-zinc-600">{date}</span>
       </div>
 
@@ -163,6 +171,7 @@ function ReviewForm({ initial, onSubmit, onCancel }: {
 
   const [scores,     setScores]     = useState(initScores);
   const [reviewText, setReviewText] = useState(initial?.reviewText ?? '');
+  const [isAnonymous, setIsAnonymous] = useState(initial?.isAnonymous ?? false);
   const [isSaving,   setIsSaving]   = useState(false);
   const [error,      setError]      = useState<string | null>(null);
 
@@ -171,12 +180,12 @@ function ReviewForm({ initial, onSubmit, onCancel }: {
     setError(null);
 
     // Build the request — only include scores that were set (not null)
-    // This is TypeScript's Object.fromEntries equivalent of a Java stream filter+collect
     const body: ReviewRequest = {
       ...Object.fromEntries(
         Object.entries(scores).filter(([, v]) => v !== null)
       ),
       reviewText: reviewText.trim() || undefined,
+      isAnonymous,
     };
 
     try {
@@ -217,6 +226,17 @@ function ReviewForm({ initial, onSubmit, onCancel }: {
       </div>
 
       {error && <p className="text-red-400 text-sm">{error}</p>}
+
+      {/* Anonymous toggle */}
+      <label className="flex items-center gap-2.5 cursor-pointer select-none w-fit">
+        <input
+          type="checkbox"
+          checked={isAnonymous}
+          onChange={(e) => setIsAnonymous(e.target.checked)}
+          className="w-4 h-4 rounded bg-zinc-800 border-zinc-600 accent-zinc-400 cursor-pointer"
+        />
+        <span className="text-sm text-zinc-400">Post anonymously</span>
+      </label>
 
       <div className="flex gap-3">
         <button

@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { authApi } from '@/lib/api/auth';
-import type { UpdateUserRequest, ReaderStatus } from '@/types/api';
+import { shelvesApi } from '@/lib/api/shelves';
+import type { UpdateUserRequest, ReaderStatus, ReadStats } from '@/types/api';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // All possible values for the ReaderStatus enum (from the API spec).
@@ -31,6 +32,7 @@ export default function ProfilePage() {
   const [isEditing,    setIsEditing]    = useState(false);
   const [isSaving,     setIsSaving]     = useState(false);
   const [saveError,    setSaveError]    = useState<string | null>(null);
+  const [stats,        setStats]        = useState<ReadStats | null>(null);
 
   // The form fields mirror the fields we allow editing in UpdateUserRequest
   const [form, setForm] = useState({
@@ -56,6 +58,14 @@ export default function ProfilePage() {
         isPrivate:    user.isPrivate,
       });
     }
+  }, [user]);
+
+  // Fetch reading stats once the user is known
+  useEffect(() => {
+    if (!user) return;
+    shelvesApi.getStats()
+      .then(setStats)
+      .catch(() => { /* non-critical — stats section just won't render */ });
   }, [user]);
 
   if (isLoading || !user) return null;
@@ -136,6 +146,32 @@ export default function ProfilePage() {
                 {user.isPrivate ? 'Private' : 'Public'}
               </span>
             </div>
+
+            {/* Reading stats */}
+            {stats && (
+              <div>
+                <p className="text-xs text-zinc-500 uppercase tracking-wide mb-3">Reading Stats</p>
+                <div className="flex gap-6 mb-3">
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-white">{stats.totalReads}</p>
+                    <p className="text-xs text-zinc-500 mt-0.5">Total reads</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-white">{stats.uniqueBooksRead}</p>
+                    <p className="text-xs text-zinc-500 mt-0.5">Unique books</p>
+                  </div>
+                </div>
+                {stats.topCategories && stats.topCategories.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {stats.topCategories.slice(0, 6).map((c) => (
+                      <span key={c.category.id} className="rounded-full bg-zinc-800 px-2.5 py-1 text-xs text-zinc-400">
+                        {c.category.name} <span className="text-zinc-600">{c.readCount}×</span>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             <button
               onClick={() => setIsEditing(true)}

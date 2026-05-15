@@ -43,9 +43,15 @@ export type UpdateUserRequest   = S['UpdateUserRequest'];
 
 // ── Shelves ──────────────────────────────────────────────────────────────────
 export type ShelfResponse         = S['ShelfResponse'];
+export type CreateShelfRequest    = S['CreateShelfRequest'];
+export type UpdateShelfRequest    = S['UpdateShelfRequest'];
 export type SetBookStateRequest   = S['SetBookStateRequest'];
 export type UserBookStateResponse = S['UserBookStateResponse'];
 export type UserBookStatePage     = S['UserBookStatePage'];
+export type ReadLogEntry          = S['ReadLogEntry'];
+export type ReadLogPage           = S['ReadLogPage'];
+export type ReadStats             = S['ReadStats'];
+export type CategoryReadCount     = S['CategoryReadCount'];
 
 // ── Reviews ──────────────────────────────────────────────────────────────────
 export type ReviewRequest  = S['ReviewRequest'];

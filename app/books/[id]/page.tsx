@@ -18,16 +18,19 @@ import type { BookResponse, CategoryWeightResponse, ShelfResponse } from '@/type
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SECTION 2 — Category weight bar sub-component
-// Renders a single category with a visual weight bar (0–100).
-// weight=100 = full bar. Like a health bar in a game.
+// The category name is now a Link — clicking it navigates to /books?categoryId=
+// so the user can browse all books in that same category.
 // ─────────────────────────────────────────────────────────────────────────────
 function CategoryBar({ item }: { item: CategoryWeightResponse }) {
   return (
     <div className="flex items-center gap-3">
-      {/* Category name — fixed width so bars all start at the same x position */}
-      <span className="text-zinc-300 text-sm w-40 shrink-0 truncate">
+      {/* Category name — clicking navigates to the category browse view */}
+      <Link
+        href={`/books?categoryId=${item.category.id}`}
+        className="text-zinc-300 text-sm w-40 shrink-0 truncate hover:text-white hover:underline underline-offset-2 transition-colors"
+      >
         {item.category.name}
-      </span>
+      </Link>
 
       {/* Track (background) + fill (foreground) — like a progress bar */}
       <div className="flex-1 h-2 bg-zinc-800 rounded-full overflow-hidden">

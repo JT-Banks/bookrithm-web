@@ -9,8 +9,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { booksApi } from '@/lib/api/books';
-import type { BookResponse, BookPage } from '@/types/api';
+import { categoriesApi } from '@/lib/api/categories';
+import type { BookResponse, BookPage, CategoryResponse } from '@/types/api';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SECTION 2 — Book Card sub-component
@@ -62,16 +64,33 @@ function BookCard({ book }: { book: BookResponse }) {
 // SECTION 3 — Main page component
 // ─────────────────────────────────────────────────────────────────────────────
 export default function BooksPage() {
+  const router = useRouter();
+  // useSearchParams lets us read ?categoryId=... from the URL on initial load,
+  // so a link like /books?categoryId=<uuid> (from the book detail page) arrives
+  // with the filter already active.
+  const searchParams = useSearchParams();
+
   // ── State ──────────────────────────────────────────────────────────────────
-  // Think of each useState like a private field with a setter.
-  // The component re-renders (like refreshing the UI) whenever one changes.
-  const [query, setQuery]       = useState('');         // what the user typed
-  const [debouncedQuery, setDebouncedQuery] = useState(''); // the delayed value we actually search with
+  const [query, setQuery]       = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   const [books, setBooks]       = useState<BookResponse[]>([]);
-  const [page, setPage]         = useState<BookPage | null>(null); // holds pagination metadata
-  const [currentPage, setCurrentPage] = useState(0);   // 0-indexed, matches the API
+  const [page, setPage]         = useState<BookPage | null>(null);
+  const [currentPage, setCurrentPage] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError]       = useState<string | null>(null);
+
+  // ── Category filter state ──────────────────────────────────────────────────
+  const [allCategories,    setAllCategories]    = useState<CategoryResponse[]>([]);
+  const [activeCategoryId, setActiveCategoryId] = useState<string | null>(
+    searchParams.get('categoryId'), // seed from URL when navigated here via a tag link
+  );
+
+  // Load the full category list once on mount (used for the filter pill row)
+  useEffect(() => {
+    categoriesApi.listCategories()
+      .then((data) => setAllCategories(data.content))
+      .catch(() => {}); // non-critical — filter pills just won't appear
+  }, []);
 
   // ── Debounce Effect ────────────────────────────────────────────────────────
   // "Debouncing" = wait for the user to stop typing before firing the search.
@@ -98,11 +117,11 @@ export default function BooksPage() {
     setIsLoading(true);
     setError(null);
     try {
-      // Only pass `q` if it's at least 2 chars (API minimum per the spec)
       const result = await booksApi.searchBooks({
         q: debouncedQuery.length >= 2 ? debouncedQuery : undefined,
         page: currentPage,
         size: 20,
+        categoryId: activeCategoryId ?? undefined,
       });
       setBooks(result.content);
       setPage(result);
@@ -112,7 +131,7 @@ export default function BooksPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [debouncedQuery, currentPage]); // ← only changes when these change
+  }, [debouncedQuery, currentPage, activeCategoryId]); // ← only changes when these change
 
   // This effect calls fetchBooks whenever debouncedQuery or currentPage changes
   useEffect(() => {
@@ -127,8 +146,8 @@ export default function BooksPage() {
       <h1 className="text-3xl font-bold text-white mb-2">Browse Books</h1>
       <p className="text-zinc-400 mb-8">Search the Bookrithm catalog</p>
 
-      {/* Search bar */}
-      <div className="mb-8">
+      {/* ── Search + filter bar ── */}
+      <div className="mb-8 flex flex-col gap-3">
         <input
           type="text"
           value={query}
@@ -136,9 +155,50 @@ export default function BooksPage() {
           placeholder="Search by title or author..."
           className="w-full max-w-xl bg-zinc-900 border border-zinc-700 text-white rounded-lg px-4 py-3 focus:outline-none focus:border-zinc-500 placeholder-zinc-500"
         />
-        {/* Tip: show a hint when query is typed but < 2 chars */}
         {query.length === 1 && (
-          <p className="text-zinc-500 text-sm mt-2">Type at least 2 characters to search</p>
+          <p className="text-zinc-500 text-sm">Type at least 2 characters to search</p>
+        )}
+
+        {/* Category filter — only rendered once categories have loaded */}
+        {allCategories.length > 0 && (
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="text-sm text-zinc-500">Filter by category:</span>
+
+            {/* "All" pill — clears the filter */}
+            <button
+              onClick={() => {
+                setActiveCategoryId(null);
+                setCurrentPage(0);
+                router.replace('/books'); // remove ?categoryId from URL
+              }}
+              className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                activeCategoryId === null
+                  ? 'bg-zinc-200 text-zinc-900'
+                  : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200'
+              }`}
+            >
+              All
+            </button>
+
+            {/* One pill per category */}
+            {allCategories.map((cat) => (
+              <button
+                key={cat.id}
+                onClick={() => {
+                  setActiveCategoryId(cat.id);
+                  setCurrentPage(0);
+                  router.replace(`/books?categoryId=${cat.id}`);
+                }}
+                className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                  activeCategoryId === cat.id
+                    ? 'bg-zinc-200 text-zinc-900'
+                    : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200'
+                }`}
+              >
+                {cat.name}
+              </button>
+            ))}
+          </div>
         )}
       </div>
 
@@ -166,13 +226,21 @@ export default function BooksPage() {
       {!isLoading && books.length === 0 && !error && (
         <div className="rounded-xl border border-zinc-800 bg-zinc-900 px-6 py-14 text-center">
           <p className="text-zinc-300 font-medium mb-1">
-            {debouncedQuery.length >= 2
+            {debouncedQuery.length >= 2 && activeCategoryId
+              ? `No books found for "${debouncedQuery}" in this category`
+              : debouncedQuery.length >= 2
               ? `No books found for "${debouncedQuery}"`
+              : activeCategoryId
+              ? 'No books tagged with this category yet.'
               : 'No books in the catalog yet.'}
           </p>
-          {debouncedQuery.length >= 2 && (
-            <p className="text-zinc-500 text-sm mt-1">Try a different title or author name.</p>
-          )}
+          <p className="text-zinc-500 text-sm mt-1">
+            {activeCategoryId
+              ? 'Try clearing the category filter or searching with different terms.'
+              : debouncedQuery.length >= 2
+              ? 'Try a different title or author name.'
+              : ''}
+          </p>
         </div>
       )}
 

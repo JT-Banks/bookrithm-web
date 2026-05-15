@@ -13,7 +13,7 @@ export const categoriesApi = {
   // We request a large page size so the full taxonomy arrives in one shot,
   // which powers client-side autocomplete without extra round-trips.
   // Think of it like loading a Java Enum's values() into a local cache.
-  listCategories: async (page = 0, size = 200): Promise<CategoryPage> => {
+  listCategories: async (page = 0, size = 100): Promise<CategoryPage> => {
     return apiClient.get<CategoryPage>(
       `/categories?page=${page}&size=${size}`,
       false, // public endpoint — no auth header needed

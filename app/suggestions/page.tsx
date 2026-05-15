@@ -9,6 +9,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { suggestionsApi } from '@/lib/api/suggestions';
 import { SuggestionForm } from '@/components/features/SuggestionForm';
@@ -56,6 +57,32 @@ function SuggestionCard({ suggestion }: { suggestion: SuggestionResponse }) {
 
       {/* Suggestion name */}
       <p className="font-medium text-zinc-100">{name}</p>
+
+      {/* Linked book — thumbnail + title linking to the book detail page */}
+      {suggestion.book && (
+        <Link
+          href={`/books/${suggestion.book.id}`}
+          className="mt-1 flex items-center gap-3 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 hover:border-zinc-600 transition-colors w-full"
+        >
+          {/* Cover thumbnail */}
+          <div className="h-12 w-9 shrink-0 rounded overflow-hidden bg-zinc-800 flex items-center justify-center">
+            {suggestion.book.coverUrl ? (
+              <img
+                src={suggestion.book.coverUrl}
+                alt={suggestion.book.title}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <span className="text-zinc-600 text-xs">?</span>
+            )}
+          </div>
+
+          {/* Book title */}
+          <span className="text-sm font-medium text-zinc-300 hover:text-white transition-colors line-clamp-2">
+            {suggestion.book.title}
+          </span>
+        </Link>
+      )}
 
       {/* Optional description */}
       {description && (

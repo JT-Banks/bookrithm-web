@@ -8,6 +8,7 @@ export interface SearchBooksParams {
   page?: number;        // 0-indexed page number
   size?: number;        // results per page
   maturity?: MaturityRating;
+  categoryId?: string;  // filter to books tagged with this category UUID
 }
 
 export const booksApi = {
@@ -16,10 +17,11 @@ export const booksApi = {
     // Build a query string like ?q=dune&page=0&size=20
     // URLSearchParams is the browser-native equivalent of Spring's UriComponentsBuilder
     const query = new URLSearchParams();
-    if (params.q)        query.set('q',       params.q);
+    if (params.q)          query.set('q',          params.q);
     if (params.page !== undefined) query.set('page', String(params.page));
     if (params.size !== undefined) query.set('size', String(params.size));
-    if (params.maturity) query.set('maturity', params.maturity);
+    if (params.maturity)   query.set('maturity',   params.maturity);
+    if (params.categoryId) query.set('categoryId', params.categoryId);
 
     const qs = query.toString();
     // false = no auth header needed (public endpoint)

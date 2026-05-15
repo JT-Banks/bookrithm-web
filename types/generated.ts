@@ -154,11 +154,30 @@ export interface paths {
         /** List the authenticated user shelves */
         get: operations["getCurrentUserShelves"];
         put?: never;
-        post?: never;
+        /** Create a custom shelf */
+        post: operations["createShelf"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/users/me/shelves/{shelfId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a custom shelf */
+        delete: operations["deleteShelf"];
+        options?: never;
+        head?: never;
+        /** Rename or toggle privacy on a custom shelf */
+        patch: operations["updateShelf"];
         trace?: never;
     };
     "/users/me/shelves/{shelfId}/books": {
@@ -172,6 +191,23 @@ export interface paths {
         get: operations["getShelfBooks"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/me/books/{bookId}/read-log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark a book as read (appends a read log entry) */
+        post: operations["markBookAsRead"];
         delete?: never;
         options?: never;
         head?: never;
@@ -196,6 +232,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/users/me/read-log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get the authenticated user's reading history */
+        get: operations["getReadLog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/me/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get reading statistics for the current user */
+        get: operations["getMyStats"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/suggestions": {
         parameters: {
             query?: never;
@@ -203,8 +273,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List the authenticated user's suggestions */
-        get: operations["getUserSuggestions"];
+        /** List the authenticated user's own suggestions */
+        get: operations["getMySuggestions"];
         put?: never;
         /** Submit a suggestion */
         post: operations["submitSuggestion"];
@@ -373,8 +443,20 @@ export interface components {
             id: string;
             name: string;
             isSystem: boolean;
+            /**
+             * @description When true, only the owner can view this shelf's books.
+             * @default false
+             */
+            isPrivate: boolean;
             maxItems?: number | null;
             bookCount: number;
+        };
+        CreateShelfRequest: {
+            name: string;
+        };
+        UpdateShelfRequest: {
+            name?: string | null;
+            isPrivate?: boolean;
         };
         SetBookStateRequest: {
             /** Format: uuid */
@@ -388,6 +470,8 @@ export interface components {
             shelfId: string;
             shelfName: string;
             position: number;
+            /** @description Number of times the user has marked this book as read. */
+            readCount?: number;
             /** Format: date-time */
             addedAt: string;
         };
@@ -395,7 +479,37 @@ export interface components {
             content: components["schemas"]["UserBookStateResponse"][];
             page: components["schemas"]["PageMeta"];
         };
+        ReadLogEntry: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            bookId: string;
+            bookTitle?: string | null;
+            /** Format: date-time */
+            completedAt: string;
+        };
+        ReadLogPage: {
+            content: components["schemas"]["ReadLogEntry"][];
+            page: components["schemas"]["PageMeta"];
+        };
+        CategoryReadCount: {
+            category: components["schemas"]["CategoryResponse"];
+            readCount: number;
+        };
+        ReadStats: {
+            /** @description Total times the user has marked any book as read. */
+            totalReads: number;
+            /** @description Distinct books read at least once. */
+            uniqueBooksRead: number;
+            /** @description Top categories by cumulative read count, ordered descending. */
+            topCategories?: components["schemas"]["CategoryReadCount"][];
+        };
         ReviewRequest: {
+            /**
+             * @description When true, the reviewer's identity is hidden from other users.
+             * @default false
+             */
+            isAnonymous: boolean;
             overall?: number;
             grammar?: number;
             storytelling?: number;
@@ -407,10 +521,15 @@ export interface components {
         ReviewResponse: {
             /** Format: uuid */
             id: string;
-            /** Format: uuid */
-            userId: string;
+            /**
+             * Format: uuid
+             * @description Present when the requester is the review owner or the review is not anonymous. Null when isAnonymous is true and the requester is not the review owner — the backend must redact this field rather than returning the real userId.
+             */
+            userId?: string | null;
             /** Format: uuid */
             bookId: string;
+            /** @description When true, the reviewer's identity should not be displayed. */
+            isAnonymous: boolean;
             overall?: number | null;
             grammar?: number | null;
             storytelling?: number | null;
@@ -435,6 +554,13 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /** @description Minimal book reference embedded in other responses (e.g. suggestions). */
+        BookSummary: {
+            /** Format: uuid */
+            id: string;
+            title: string;
+            coverUrl?: string | null;
+        };
         SuggestionResponse: {
             /** Format: uuid */
             id: string;
@@ -443,8 +569,9 @@ export interface components {
             payload?: {
                 [key: string]: unknown;
             };
+            /** @description The book this suggestion is linked to, if any. */
+            book?: components["schemas"]["BookSummary"];
             aiConfidence?: number | null;
-            aiReason?: string | null;
             /** Format: date-time */
             createdAt: string;
             /** Format: date-time */
@@ -540,6 +667,7 @@ export interface operations {
                 page?: components["parameters"]["PageParam"];
                 size?: components["parameters"]["SizeParam"];
                 maturity?: components["schemas"]["MaturityRating"];
+                categoryId?: string;
             };
             header?: {
                 "X-Request-ID"?: components["parameters"]["XRequestId"];
@@ -896,6 +1024,94 @@ export interface operations {
             500: components["responses"]["InternalServerError"];
         };
     };
+    createShelf: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Request-ID"?: components["parameters"]["XRequestId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateShelfRequest"];
+            };
+        };
+        responses: {
+            /** @description Shelf created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShelfResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    deleteShelf: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Request-ID"?: components["parameters"]["XRequestId"];
+            };
+            path: {
+                shelfId: components["parameters"]["ShelfIdPathParam"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Shelf deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    updateShelf: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Request-ID"?: components["parameters"]["XRequestId"];
+            };
+            path: {
+                shelfId: components["parameters"]["ShelfIdPathParam"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateShelfRequest"];
+            };
+        };
+        responses: {
+            /** @description Shelf updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShelfResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
     getShelfBooks: {
         parameters: {
             query?: {
@@ -919,6 +1135,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserBookStatePage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    markBookAsRead: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Request-ID"?: components["parameters"]["XRequestId"];
+            };
+            path: {
+                bookId: components["parameters"]["BookIdPathParam"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Read log entry created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadLogEntry"];
                 };
             };
             401: components["responses"]["Unauthorized"];
@@ -983,7 +1226,7 @@ export interface operations {
             500: components["responses"]["InternalServerError"];
         };
     };
-    getUserSuggestions: {
+    getReadLog: {
         parameters: {
             query?: {
                 page?: components["parameters"]["PageParam"];
@@ -997,7 +1240,58 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Paginated list of the user's suggestions */
+            /** @description Paginated reading history */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadLogPage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    getMyStats: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Request-ID"?: components["parameters"]["XRequestId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Aggregate reading statistics */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadStats"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    getMySuggestions: {
+        parameters: {
+            query?: {
+                page?: components["parameters"]["PageParam"];
+                size?: components["parameters"]["SizeParam"];
+            };
+            header?: {
+                "X-Request-ID"?: components["parameters"]["XRequestId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Paginated list of the current user's suggestions */
             200: {
                 headers: {
                     [name: string]: unknown;

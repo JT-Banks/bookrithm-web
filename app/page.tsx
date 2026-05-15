@@ -116,7 +116,7 @@ export default function HomePage() {
         Bookrithm
       </h1>
       <p className="mt-4 text-xl text-zinc-400 max-w-md">
-        Track what you read. Discover what you&apos;ll love.
+        Track what you read. Discover what you'll love.
       </p>
 
       {/* Sign-in CTA */}
