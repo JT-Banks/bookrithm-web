@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { BookPage, BookResponse, CategoryWeightResponse, MaturityRating } from '@/types/api';
+import type { BookPage, BookResponse, CategoryWeightResponse, MaturityRating, BookSortBy } from '@/types/api';
 
 // The query params we support when calling GET /books
 // In Java this would be a record/DTO passed to your service layer
@@ -9,6 +9,7 @@ export interface SearchBooksParams {
   size?: number;        // results per page
   maturity?: MaturityRating;
   categoryId?: string;  // filter to books tagged with this category UUID
+  sortBy?: BookSortBy;  // READS | SHELVED
 }
 
 export const booksApi = {
@@ -22,6 +23,7 @@ export const booksApi = {
     if (params.size !== undefined) query.set('size', String(params.size));
     if (params.maturity)   query.set('maturity',   params.maturity);
     if (params.categoryId) query.set('categoryId', params.categoryId);
+    if (params.sortBy)     query.set('sortBy',     params.sortBy);
 
     const qs = query.toString();
     // false = no auth header needed (public endpoint)

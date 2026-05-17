@@ -21,7 +21,7 @@ The platform is for serious readers: people who want to find books by their actu
 | Database | PostgreSQL 18 |
 | Auth | Google OAuth2 — JWT resource server only (never issues tokens) |
 | API Style | REST, JSON |
-| API Base URL (local) | `http://localhost:8080/bookrithm/v1` |
+| API Base URL (local) | `http://localhost:8080/api/v1` |
 
 ---
 
@@ -77,8 +77,7 @@ Public. Query params:
 | `q` | string | — | Search query. minLength=2, maxLength=200. If absent, browses all books |
 | `page` | integer | 0 | Minimum 0 |
 | `size` | integer | 20 | 1–100 |
-| `maturity` | `MaturityRating` | — | Filter: `UNKNOWN`, `EVERYONE`, `TEEN`, `MATURE` |
-| `source` | `BookSource` | — | Filter: `GOOGLE_BOOKS` |
+| `sortBy` | `BookSortBy` | `READS` | Sort: `READS` (most read) or `SHELVED` (most shelved). Ignored when `q` is present |
 
 Response `200`:
 ```json
@@ -252,6 +251,36 @@ Response `200`: array of `ShelfResponse`
 
 ---
 
+#### `POST /users/me/shelves` — Create a shelf
+
+Auth required.
+
+Request body: `CreateShelfRequest` (`name`, optional `isPrivate`)
+
+Response `201`: `ShelfResponse`
+
+---
+
+#### `PATCH /users/me/shelves/{shelfId}` — Update a shelf
+
+Auth required. Cannot update system shelves.
+
+Request body: `UpdateShelfRequest` (`name`, `isPrivate` — both optional)
+
+Response `200`: `ShelfResponse`
+Response `403`: system shelf or not owner
+
+---
+
+#### `DELETE /users/me/shelves/{shelfId}` — Delete a shelf
+
+Auth required. Cannot delete system shelves.
+
+Response `204`: no content
+Response `403`: system shelf or not owner
+
+---
+
 #### `GET /users/me/shelves/{shelfId}/books` — List books on a shelf
 
 Auth required. Query: `page` (default 0), `size` (default 20).
@@ -286,6 +315,31 @@ Auth required.
 
 Response `204`: no content
 Response `404`: book not on any shelf
+
+---
+
+#### `POST /users/me/books/{bookId}/read-log` — Mark a book as read (log a read)
+
+Auth required. Increments `readCount` on the user's book state and appends a `ReadLogEntry`.
+
+Response `201`: `ReadLogEntry`
+Response `404`: book not found
+
+---
+
+#### `GET /users/me/read-log` — Get the user's reading log
+
+Auth required. Query: `page` (default 0), `size` (default 20). Newest first.
+
+Response `200`: `ReadLogPage` (`content: ReadLogEntry[]` + page meta)
+
+---
+
+#### `GET /users/me/stats` — Get the user's reading statistics
+
+Auth required.
+
+Response `200`: `UserReadStats`
 
 ---
 
@@ -387,7 +441,7 @@ Response `200`: updated `SuggestionResponse`
 ```typescript
 {
   id: string
-  userId: string
+  userId: string | null  // null when isAnonymous=true
   bookId: string
   overall?: number      // 0–10
   grammar?: number
@@ -396,6 +450,7 @@ Response `200`: updated `SuggestionResponse`
   characters?: number
   pacing?: number
   reviewText?: string
+  isAnonymous: boolean
   createdAt: string
   updatedAt: string
 }
@@ -432,6 +487,7 @@ Response `200`: updated `SuggestionResponse`
   id: string
   name: string
   isSystem: boolean     // system shelves cannot be deleted or renamed
+  isPrivate: boolean    // hidden from other users
   maxItems?: number
   bookCount: number
 }
@@ -446,6 +502,44 @@ Response `200`: updated `SuggestionResponse`
   shelfName: string
   position: number
   addedAt: string
+  readCount: number     // how many times the user has marked this book as read
+}
+```
+
+### `CreateShelfRequest`
+```typescript
+{ name: string; isPrivate?: boolean }
+```
+
+### `UpdateShelfRequest`
+```typescript
+{ name?: string; isPrivate?: boolean }
+```
+
+### `ReadLogEntry`
+```typescript
+{
+  id: string
+  bookId: string
+  bookTitle?: string
+  completedAt: string   // ISO date-time
+}
+```
+
+### `UserReadStats` (exported as `ReadStats` in `types/api.ts`)
+```typescript
+{
+  totalReads: number
+  uniqueBooksRead: number
+  topCategories: CategoryReadCount[]
+}
+```
+
+### `CategoryReadCount`
+```typescript
+{
+  category: CategoryResponse
+  readCount: number
 }
 ```
 

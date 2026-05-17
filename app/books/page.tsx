@@ -12,7 +12,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { booksApi } from '@/lib/api/books';
 import { categoriesApi } from '@/lib/api/categories';
-import type { BookResponse, BookPage, CategoryResponse } from '@/types/api';
+import type { BookResponse, BookPage, CategoryResponse, BookSortBy } from '@/types/api';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SECTION 2 — Book Card sub-component
@@ -24,33 +24,42 @@ function BookCard({ book }: { book: BookResponse }) {
   return (
     <Link
       href={`/books/${book.id}`}
-      className="bg-zinc-900 rounded-xl overflow-hidden flex flex-col hover:bg-zinc-800 transition-colors"
+      className="group bg-zinc-900/40 backdrop-blur-sm border border-zinc-800/50 rounded-xl overflow-hidden flex flex-col transition-all duration-200 hover:border-amber-900/60 hover:bg-zinc-900/65 hover:-translate-y-1.5 hover:shadow-xl hover:shadow-zinc-950/60"
     >
       {/* Cover image */}
-      <div className="h-56 bg-zinc-800 flex items-center justify-center">
+      <div className="relative h-56 bg-zinc-800/80 flex items-center justify-center overflow-hidden">
         {book.coverUrl ? (
-          <img
-            src={book.coverUrl}
-            alt={book.title}
-            className="h-full w-full object-cover"
-          />
+          <>
+            <img
+              src={book.coverUrl}
+              alt={book.title}
+              className="h-full w-full object-cover group-hover:scale-[1.03] transition-transform duration-300"
+            />
+            {/* Gradient bleeds cover into card body — eliminates the harsh line */}
+            <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-zinc-900 to-transparent pointer-events-none" />
+          </>
         ) : (
-          <span className="text-zinc-600 text-sm">No cover</span>
+          <div className="flex flex-col items-center gap-2 text-zinc-600">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1} stroke="currentColor" className="w-10 h-10">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+            </svg>
+            <span className="text-xs">No cover</span>
+          </div>
         )}
       </div>
 
       <div className="p-4 flex flex-col gap-1 flex-1">
-        <h3 className="text-white font-semibold leading-snug line-clamp-2">
+        <h3 className="text-zinc-100 font-semibold leading-snug line-clamp-2 group-hover:text-white transition-colors">
           {book.title}
         </h3>
-        <p className="text-zinc-400 text-sm">{book.author}</p>
+        <p className="text-zinc-500 text-sm">{book.author}</p>
 
-        <div className="mt-auto pt-2">
-          <span className="text-xs px-2 py-0.5 rounded-full bg-zinc-700 text-zinc-300">
+        <div className="mt-auto pt-2 flex flex-wrap gap-1.5">
+          <span className="text-xs px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400">
             {book.maturity}
           </span>
           {book.isFanfiction && (
-            <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-purple-900 text-purple-300">
+            <span className="text-xs px-2 py-0.5 rounded-full bg-purple-900/60 text-purple-300">
               Fanfiction
             </span>
           )}
@@ -82,8 +91,9 @@ export default function BooksPage() {
   // ── Category filter state ──────────────────────────────────────────────────
   const [allCategories,    setAllCategories]    = useState<CategoryResponse[]>([]);
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(
-    searchParams.get('categoryId'), // seed from URL when navigated here via a tag link
+    searchParams.get('categoryId'),
   );
+  const [sortBy, setSortBy] = useState<BookSortBy>('READS');
 
   // Load the full category list once on mount (used for the filter pill row)
   useEffect(() => {
@@ -122,6 +132,7 @@ export default function BooksPage() {
         page: currentPage,
         size: 20,
         categoryId: activeCategoryId ?? undefined,
+        sortBy,
       });
       setBooks(result.content);
       setPage(result);
@@ -131,7 +142,7 @@ export default function BooksPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [debouncedQuery, currentPage, activeCategoryId]); // ← only changes when these change
+  }, [debouncedQuery, currentPage, activeCategoryId, sortBy]);
 
   // This effect calls fetchBooks whenever debouncedQuery or currentPage changes
   useEffect(() => {
@@ -144,10 +155,36 @@ export default function BooksPage() {
 
       {/* Page header */}
       <h1 className="text-3xl font-bold text-white mb-2">Browse Books</h1>
-      <p className="text-zinc-400 mb-8">Search the Bookrithm catalog</p>
+      <p className="text-zinc-400 mb-8">
+        {debouncedQuery.length >= 2
+          ? `Results for "${debouncedQuery}"`
+          : activeCategoryId
+          ? 'Filtered by category'
+          : sortBy === 'READS' ? 'Most read in the catalog' : 'Most shelved in the catalog'}
+      </p>
 
       {/* ── Search + filter bar ── */}
       <div className="mb-8 flex flex-col gap-3">
+        {/* Sort toggle — only meaningful when not doing a text search */}
+        {debouncedQuery.length < 2 && (
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-zinc-500">Sort:</span>
+            {(['READS', 'SHELVED'] as BookSortBy[]).map((option) => (
+              <button
+                key={option}
+                onClick={() => { setSortBy(option); setCurrentPage(0); }}
+                className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                  sortBy === option
+                    ? 'bg-zinc-200 text-zinc-900'
+                    : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200'
+                }`}
+              >
+                {option === 'READS' ? 'Most read' : 'Most shelved'}
+              </button>
+            ))}
+          </div>
+        )}
+
         <input
           type="text"
           value={query}

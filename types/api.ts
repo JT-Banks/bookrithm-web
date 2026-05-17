@@ -17,6 +17,7 @@ type S = components['schemas'];
 
 // ── Enums ────────────────────────────────────────────────────────────────────
 export type BookSource       = S['BookSource'];
+export type BookSortBy       = S['BookSortBy'];
 export type MaturityRating   = S['MaturityRating'];
 export type SuggestionStatus = S['SuggestionStatus'];
 export type SuggestionType   = S['SuggestionType'];
@@ -50,7 +51,7 @@ export type UserBookStateResponse = S['UserBookStateResponse'];
 export type UserBookStatePage     = S['UserBookStatePage'];
 export type ReadLogEntry          = S['ReadLogEntry'];
 export type ReadLogPage           = S['ReadLogPage'];
-export type ReadStats             = S['ReadStats'];
+export type ReadStats             = S['UserReadStats'];
 export type CategoryReadCount     = S['CategoryReadCount'];
 
 // ── Reviews ──────────────────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 # AI Context - Bookrithm Frontend Development
 
-**Last Updated**: May 11, 2026  
+**Last Updated**: May 16, 2026  
 **Session Type**: Learning-Focused Development  
 **GitHub**: https://github.com/JT-Banks/bookrithm-web.git
 
@@ -51,33 +51,63 @@
 
 **Backend** (Already Built by User):
 - Java 25 + Spring Boot 4 + PostgreSQL 18
-- Runs on `http://localhost:8080/bookrithm/v1`
+- Runs on `http://localhost:8080/api/v1`
 - Google OAuth2 (JWT validation only - doesn't issue tokens)
-- 14 REST endpoints across 6 domains
 
-**Frontend** (Currently Building):
+**Frontend** (Built):
 - Next.js 16.2.6 (App Router)
 - React 19.2.4
 - TypeScript 5 (strict mode)
-- Tailwind CSS 4
+- Tailwind CSS 4 (warm `@theme` palette override — walnut/mahogany tones)
+- Lora serif font (headings) + Geist Sans (body)
 - Native `fetch` API (no Axios)
+- `openapi-typescript` for type codegen
 
 ### Development Plan
 
-**Current Phase**: Path A - Authentication First
-- ✅ Foundation and structure
-- 🚧 Google OAuth integration
-- 🔜 User registration flow
-- 🔜 Profile management
-- 🔜 Then move to book discovery features
+**Current Phase**: Complete — all core features + styling shipped. Only remaining item is the admin moderation panel (low priority).
 
 ---
 
 ## ✅ What's Been Built
 
-### 1. Project Structure (Following Next.js Conventions)
+The app is **feature-complete**. Every page and API service below is implemented and working.
 
-```
+### Pages
+| Route | File | Status |
+|---|---|---|
+| `/` | `app/page.tsx` | Hero (logged-out) + 5-tile dashboard (logged-in) |
+| `/register` | `app/register/page.tsx` | Username/displayName registration form |
+| `/books` | `app/books/page.tsx` | Search, category filter, sort (READS/SHELVED), grid, pagination |
+| `/books/[id]` | `app/books/[id]/page.tsx` | Cover, categories, reviews, add-to-shelf |
+| `/shelves` | `app/shelves/page.tsx` | Shelf list, inline create form, lock icon for private |
+| `/shelves/[id]` | `app/shelves/[id]/page.tsx` | Shelf books, mark read, remove, privacy toggle, delete |
+| `/read-log` | `app/read-log/page.tsx` | Paginated reading history |
+| `/suggestions` | `app/suggestions/page.tsx` | Submit + view own suggestions |
+| `/profile` | `app/profile/page.tsx` | View/edit profile + reading stats |
+
+### API Services (`lib/api/`)
+- `client.ts` — base fetch wrapper with auth headers, error handling
+- `auth.ts` — register, getCurrentUser, updateProfile
+- `books.ts` — searchBooks (with sortBy), getBook, getBookCategories
+- `categories.ts` — getCategories
+- `shelves.ts` — getShelves, createShelf, updateShelf, deleteShelf, getShelfBooks, setBookState, removeBookState, markAsRead, getReadLog, getStats
+- `reviews.ts` — getReviews, createReview, updateReview, deleteReview
+- `suggestions.ts` — submitSuggestion, getSuggestions
+
+### Key Components
+- `components/layout/Header.tsx` — nav with active state via `usePathname()`
+- `components/features/SignInButton.tsx` — Google OAuth credential flow
+- `components/features/ReviewSection.tsx` — write/edit/delete reviews, score sliders, anonymous toggle
+- `components/features/SuggestionForm.tsx` — suggestion submission form
+
+### Styling
+- **Warm library aesthetic**: zinc palette overridden with walnut/mahogany tones in `globals.css @theme {}`
+- **Background**: `public/images/bg-library.png` fixed, with `bg-zinc-950/60 backdrop-blur-[1px]` overlay in `app/layout.tsx`
+- **Cards**: glassmorphism (`bg-zinc-900/40 backdrop-blur-sm`), amber hover border + lift
+- **Fonts**: Lora serif (`h1–h4`) + Geist Sans (body) — both via `next/font/google`
+
+### 2. Key Files
 bookrithm-web/
 ├── app/                    # Next.js pages (App Router)
 │   ├── layout.tsx         # Root layout

@@ -2,4 +2,37 @@
 
 @theme inline {
   --font-sans: var(--font-geist-sans);
+  --font-serif: var(--font-lora), Georgia, 'Times New Roman', serif;
+}
+
+/*
+  Warm library palette — replaces cold zinc with walnut, mahogany,
+  parchment, and candlelight tones. Every component picks this up
+  automatically because they all use zinc-* utility classes.
+*/
+@theme {
+  /* Backgrounds — dark polished wood */
+  --color-zinc-950: #0e0804;
+  --color-zinc-900: #1a1009;
+  --color-zinc-800: #2b1b0e;
+  --color-zinc-700: #3e2a15;
+
+  /* Mid-tones — aged leather / muted ink */
+  --color-zinc-600: #5a3e22;
+  --color-zinc-500: #7c5838;
+
+  /* Text — warm ink on parchment */
+  --color-zinc-400: #a07d55;
+  --color-zinc-300: #c8a878;
+  --color-zinc-200: #ddc9a4;
+  --color-zinc-100: #f0dfc4;
+  --color-zinc-50:  #fdf4e3;
+
+  /* Pure white → warm cream */
+  --color-white: #fef9f0;
+}
+
+/* Headings use the serif font for a literary feel */
+h1, h2, h3, h4 {
+  font-family: var(--font-serif);
 }

@@ -154,7 +154,7 @@ export interface paths {
         /** List the authenticated user shelves */
         get: operations["getCurrentUserShelves"];
         put?: never;
-        /** Create a custom shelf */
+        /** Create a custom shelf for the authenticated user */
         post: operations["createShelf"];
         delete?: never;
         options?: never;
@@ -172,11 +172,11 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Delete a custom shelf */
+        /** Delete a custom shelf and all its book-state entries */
         delete: operations["deleteShelf"];
         options?: never;
         head?: never;
-        /** Rename or toggle privacy on a custom shelf */
+        /** Rename or toggle privacy of a custom shelf */
         patch: operations["updateShelf"];
         trace?: never;
     };
@@ -206,8 +206,42 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Mark a book as read (appends a read log entry) */
-        post: operations["markBookAsRead"];
+        /** Record that the authenticated user finished reading a book */
+        post: operations["logBookRead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/me/read-log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the authenticated user's read-log entries */
+        get: operations["getReadLog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/me/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get aggregated reading statistics for the authenticated user */
+        get: operations["getUserStats"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -227,40 +261,6 @@ export interface paths {
         post?: never;
         /** Remove a book from all shelves */
         delete: operations["removeBookState"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/users/me/read-log": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get the authenticated user's reading history */
-        get: operations["getReadLog"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/users/me/stats": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get reading statistics for the current user */
-        get: operations["getMyStats"];
-        put?: never;
-        post?: never;
-        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -343,6 +343,8 @@ export interface components {
         };
         /** @enum {string} */
         BookSource: "GOOGLE_BOOKS";
+        /** @enum {string} */
+        BookSortBy: "READS" | "SHELVED";
         /** @enum {string} */
         MaturityRating: "UNKNOWN" | "EVERYONE" | "TEEN" | "MATURE";
         /** @enum {string} */
@@ -443,20 +445,9 @@ export interface components {
             id: string;
             name: string;
             isSystem: boolean;
-            /**
-             * @description When true, only the owner can view this shelf's books.
-             * @default false
-             */
             isPrivate: boolean;
             maxItems?: number | null;
             bookCount: number;
-        };
-        CreateShelfRequest: {
-            name: string;
-        };
-        UpdateShelfRequest: {
-            name?: string | null;
-            isPrivate?: boolean;
         };
         SetBookStateRequest: {
             /** Format: uuid */
@@ -470,39 +461,13 @@ export interface components {
             shelfId: string;
             shelfName: string;
             position: number;
-            /** @description Number of times the user has marked this book as read. */
-            readCount?: number;
             /** Format: date-time */
             addedAt: string;
+            readCount: number;
         };
         UserBookStatePage: {
             content: components["schemas"]["UserBookStateResponse"][];
             page: components["schemas"]["PageMeta"];
-        };
-        ReadLogEntry: {
-            /** Format: uuid */
-            id: string;
-            /** Format: uuid */
-            bookId: string;
-            bookTitle?: string | null;
-            /** Format: date-time */
-            completedAt: string;
-        };
-        ReadLogPage: {
-            content: components["schemas"]["ReadLogEntry"][];
-            page: components["schemas"]["PageMeta"];
-        };
-        CategoryReadCount: {
-            category: components["schemas"]["CategoryResponse"];
-            readCount: number;
-        };
-        ReadStats: {
-            /** @description Total times the user has marked any book as read. */
-            totalReads: number;
-            /** @description Distinct books read at least once. */
-            uniqueBooksRead: number;
-            /** @description Top categories by cumulative read count, ordered descending. */
-            topCategories?: components["schemas"]["CategoryReadCount"][];
         };
         ReviewRequest: {
             /**
@@ -584,6 +549,37 @@ export interface components {
         SuggestionDecisionRequest: {
             approved: boolean;
             reason?: string;
+        };
+        CreateShelfRequest: {
+            name: string;
+        };
+        UpdateShelfRequest: {
+            name?: string | null;
+            isPrivate?: boolean;
+        };
+        ReadLogEntry: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            bookId: string;
+            bookTitle?: string | null;
+            /** Format: date-time */
+            completedAt: string;
+        };
+        ReadLogPage: {
+            content: components["schemas"]["ReadLogEntry"][];
+            page: components["schemas"]["PageMeta"];
+        };
+        CategoryReadCount: {
+            category: components["schemas"]["CategoryResponse"];
+            readCount: number;
+        };
+        UserReadStats: {
+            /** Format: int64 */
+            totalReads: number;
+            /** Format: int64 */
+            uniqueBooksRead: number;
+            topCategories: components["schemas"]["CategoryReadCount"][];
         };
     };
     responses: {
@@ -668,6 +664,7 @@ export interface operations {
                 size?: components["parameters"]["SizeParam"];
                 maturity?: components["schemas"]["MaturityRating"];
                 categoryId?: string;
+                sortBy?: components["schemas"]["BookSortBy"];
             };
             header?: {
                 "X-Request-ID"?: components["parameters"]["XRequestId"];
@@ -1050,6 +1047,7 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
+            409: components["responses"]["Conflict"];
             500: components["responses"]["InternalServerError"];
         };
     };
@@ -1142,7 +1140,7 @@ export interface operations {
             500: components["responses"]["InternalServerError"];
         };
     };
-    markBookAsRead: {
+    logBookRead: {
         parameters: {
             query?: never;
             header?: {
@@ -1166,6 +1164,57 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    getReadLog: {
+        parameters: {
+            query?: {
+                page?: components["parameters"]["PageParam"];
+                size?: components["parameters"]["SizeParam"];
+            };
+            header?: {
+                "X-Request-ID"?: components["parameters"]["XRequestId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Paginated read-log entries */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadLogPage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    getUserStats: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Request-ID"?: components["parameters"]["XRequestId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Reading statistics */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserReadStats"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
             500: components["responses"]["InternalServerError"];
         };
     };
@@ -1223,57 +1272,6 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
-            500: components["responses"]["InternalServerError"];
-        };
-    };
-    getReadLog: {
-        parameters: {
-            query?: {
-                page?: components["parameters"]["PageParam"];
-                size?: components["parameters"]["SizeParam"];
-            };
-            header?: {
-                "X-Request-ID"?: components["parameters"]["XRequestId"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Paginated reading history */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ReadLogPage"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            500: components["responses"]["InternalServerError"];
-        };
-    };
-    getMyStats: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Request-ID"?: components["parameters"]["XRequestId"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Aggregate reading statistics */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ReadStats"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
             500: components["responses"]["InternalServerError"];
         };
     };

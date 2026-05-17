@@ -27,14 +27,12 @@ function NavTile({
   emoji: string;
   locked?: boolean;
 }) {
-  // Shared visual style for the tile box
   const baseStyle =
-    'flex flex-col gap-3 rounded-2xl border border-zinc-800 bg-zinc-900 p-6 transition-colors';
+    'flex flex-col gap-3 rounded-2xl border border-zinc-800/60 bg-zinc-900/50 backdrop-blur-sm p-6 transition-all duration-200';
 
   if (locked) {
-    // Non-clickable version — same look but muted and shows a "sign in" hint
     return (
-      <div className={`${baseStyle} opacity-50 cursor-not-allowed`}>
+      <div className={`${baseStyle} opacity-40 cursor-not-allowed`}>
         <span className="text-3xl">{emoji}</span>
         <div>
           <p className="font-semibold text-zinc-300">{title}</p>
@@ -48,7 +46,7 @@ function NavTile({
   return (
     <Link
       href={href}
-      className={`${baseStyle} hover:border-zinc-600 hover:bg-zinc-800 cursor-pointer`}
+      className={`${baseStyle} hover:border-amber-900/60 hover:bg-zinc-900/70 hover:-translate-y-1 hover:shadow-xl hover:shadow-zinc-950/50 cursor-pointer`}
     >
       <span className="text-3xl">{emoji}</span>
       <div>
@@ -74,34 +72,20 @@ export default function HomePage() {
   // ── Logged-in: Dashboard view ─────────────────────────────────────────────
   if (user) {
     return (
-      <main className="max-w-4xl mx-auto px-6 py-12">
+      <main className="max-w-4xl mx-auto px-6 pt-10 pb-16">
         <div className="mb-10">
           <h1 className="text-3xl font-bold text-white">
-            Welcome back, {user.displayName}
+            Welcome back, {user.displayName} 📖
           </h1>
           <p className="text-zinc-400 mt-2">Where would you like to go?</p>
         </div>
 
-        {/* 3-column tile grid — each tile is a NavTile linking to a section */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <NavTile
-            href="/shelves"
-            title="My Shelves"
-            desc="View and manage your reading lists"
-            emoji="📚"
-          />
-          <NavTile
-            href="/books"
-            title="Browse Books"
-            desc="Search the Bookrithm catalog"
-            emoji="🔍"
-          />
-          <NavTile
-            href="/profile"
-            title="My Profile"
-            desc="Edit your username and bio"
-            emoji="👤"
-          />
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+          <NavTile href="/shelves"     title="My Shelves"   desc="View and manage your reading lists"     emoji="📚" />
+          <NavTile href="/books"       title="Browse Books" desc="Explore the Bookrithm catalog"           emoji="🔎" />
+          <NavTile href="/read-log"    title="History"      desc="Every book you've finished"              emoji="📜" />
+          <NavTile href="/suggestions" title="Suggest"      desc="Add missing tags and categories"         emoji="✍️" />
+          <NavTile href="/profile"     title="My Profile"   desc="Edit your bio and reading identity"      emoji="🪪" />
         </div>
       </main>
     );
@@ -109,9 +93,10 @@ export default function HomePage() {
 
   // ── Logged-out: Marketing / hero view ────────────────────────────────────
   return (
-    <main className="max-w-4xl mx-auto px-6 py-16 flex flex-col items-center text-center">
+    <main className="max-w-3xl mx-auto px-6 pt-16 pb-12 flex flex-col items-center text-center">
 
       {/* Hero */}
+      <div className="text-6xl mb-6 select-none">📚</div>
       <h1 className="text-5xl font-bold tracking-tight text-white">
         Bookrithm
       </h1>
@@ -125,28 +110,11 @@ export default function HomePage() {
         <SignInButton />
       </div>
 
-      {/* Feature teaser tiles — shown to everyone, locked ones hint at sign-in */}
-      <div className="mt-16 grid grid-cols-1 sm:grid-cols-3 gap-4 w-full text-left">
-        <NavTile
-          href="/books"
-          title="Browse Books"
-          desc="Explore the catalog — no account needed"
-          emoji="🔍"
-        />
-        <NavTile
-          href="/shelves"
-          title="Reading Shelves"
-          desc="Organize books into Want to Read, Reading, and more"
-          emoji="📚"
-          locked
-        />
-        <NavTile
-          href="/profile"
-          title="Your Profile"
-          desc="Track your reading identity"
-          emoji="👤"
-          locked
-        />
+      {/* Feature teaser tiles */}
+      <div className="mt-12 grid grid-cols-1 sm:grid-cols-3 gap-4 w-full text-left">
+        <NavTile href="/books"   title="Browse Books"    desc="Explore the catalog — no account needed" emoji="🔎" />
+        <NavTile href="/shelves" title="Reading Shelves" desc="Organise Want to Read, Reading, and more" emoji="📚" locked />
+        <NavTile href="/profile" title="Your Profile"    desc="Build your reading identity"              emoji="🪪" locked />
       </div>
     </main>
   );

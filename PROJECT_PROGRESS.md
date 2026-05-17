@@ -1,7 +1,7 @@
 # Bookrithm Frontend — Project Progress
 
-**Last Updated**: May 13, 2026  
-**Status**: 🚧 Suggestions Complete — Admin Panel Remaining
+**Last Updated**: May 16, 2026  
+**Status**: ✅ Full Feature Set + Styling Complete — Admin Panel Remaining
 
 ---
 
@@ -62,24 +62,67 @@ Building the frontend web application for **Bookrithm**, a book tracking and dis
 
 ---
 
-## Phase 3: Advanced Features
+## Phase 3: Advanced Features ✅ COMPLETE
 
-### 🎯 Suggestions ✅ COMPLETE
+### Suggestions
 - [x] **Suggestions API service** (`lib/api/suggestions.ts`) — submitSuggestion, getSuggestions
 - [x] **SuggestionForm component** (`components/features/SuggestionForm.tsx`) — type selector (CATEGORY/TROPE/CONTENT_WARNING), name, optional description
 - [x] **Suggestions page** (`app/suggestions/page.tsx`) — user's own submission history, status badges (PENDING/APPROVED/REJECTED), pagination, collapsible form
 - [x] **Book detail integration** — "Suggest a Tag" section on book detail page (logged-in only)
 - [x] **Header nav link** — "Suggest" link for logged-in users
 
-### 🎨 Global Styling Pass ✅ COMPLETE
-- [x] Replaced all `Loading...` text with animated skeleton placeholders across all pages
-- [x] Added empty state cards: "No books found" (books page), improved empty states project-wide
-- [x] Fixed `gray-*` → `zinc-*` inconsistency in `app/books/page.tsx`
-- [x] Fixed heading color inconsistency (`text-zinc-900 dark:text-zinc-50` → `text-white`)
-- [x] Consistent pagination button styles across pages
+### Anonymous Reviews
+- [x] `isAnonymous` on `ReviewRequest`/`ReviewResponse`; `userId` nullable on response
+- [x] Types regenerated; ReviewSection shows anonymous toggle + "Anonymous" display when active
 
-### Admin Panel (low priority)
-- [ ] Suggestion moderation queue (admin-only) — `GET /admin/suggestions`
+### Private Shelves
+- [x] `isPrivate` on `ShelfResponse`; `CreateShelfRequest`/`UpdateShelfRequest`; `POST/PATCH/DELETE /users/me/shelves` in spec + types
+- [x] `lib/api/shelves.ts` — `createShelf(body)`, `updateShelf(shelfId, body)`, `deleteShelf(shelfId)`
+- [x] Shelves list — inline "+ New Shelf" create form; lock icon on private shelves; "default" pill on system shelves
+- [x] Shelf detail — privacy toggle + "Delete shelf" for non-system shelves
+- [x] Backend gap doc: `BACKEND_GAP_PRIVATE_SHELVES.md`
+
+### Read Counts & Reading Stats
+- [x] `readCount` on `UserBookStateResponse`; `BookSortBy [READS, SHELVED]` + `sortBy` on `GET /books`; `ReadLogEntry`, `UserReadStats`, `CategoryReadCount` in spec + types
+- [x] `POST /users/me/books/{bookId}/read-log`, `GET /users/me/read-log`, `GET /users/me/stats` in spec + types
+- [x] `lib/api/shelves.ts` — `markAsRead(bookId)`, `getReadLog(page?, size?)`, `getStats()`
+- [x] `lib/api/books.ts` — `sortBy?: BookSortBy` on `searchBooks()`
+- [x] Shelf detail — "Mark read" button; "Read N×" badge when `readCount > 0`
+- [x] Profile page — reading stats: totalReads, uniqueBooksRead, topCategories pills
+- [x] Browse page — sort toggle ("Most read" / "Most shelved") defaulting to READS
+- [x] Backend gap doc: `BACKEND_GAP_READ_COUNTS.md`
+
+### New Pages
+- [x] **`/read-log`** (`app/read-log/page.tsx`) — paginated reading history; auth-guarded; loading skeleton + empty state
+- [x] **`not-found.tsx`** — 404 page with "Back to home" link
+
+---
+
+## Phase 4: Styling & UI Polish ✅ COMPLETE
+
+### Warm Library Aesthetic
+- [x] **`app/globals.css`** — full warm palette override in `@theme {}`: zinc-950 = `#0e0804` (dark walnut) → zinc-50 = `#fdf4e3` (cream); `--color-white: #fef9f0`
+- [x] **Lora serif font** — loaded via `next/font/google`; `h1–h4` use `var(--font-serif)`
+- [x] **Background image** — `public/images/bg-library.png` fixed background on `<body>`; `bg-zinc-950/60 backdrop-blur-[1px]` overlay wraps content
+
+### Navigation
+- [x] Header — `bg-zinc-950/80 backdrop-blur-sm`; 📚 logo; active route underline via `usePathname()`
+- [x] Nav labels: Browse, Shelves, History (`/read-log`), Suggest, displayName, Sign out
+- [x] Emojis throughout: 📚 logo, 🔎 Browse, 📜 History, ✍️ Suggest, 🪪 Profile, 📖 welcome
+
+### Landing Page
+- [x] Logged-out hero — 📚 emoji, sign-in CTA, 3 glassmorphism feature tiles
+- [x] Logged-in dashboard — 5-tile grid (Shelves, Browse, History, Suggest, Profile); `bg-zinc-900/50 backdrop-blur-sm`; hover: amber border + lift + shadow
+
+### Book Cards
+- [x] Glassmorphism — `bg-zinc-900/40 backdrop-blur-sm border border-zinc-800/50`
+- [x] Cover gradient overlay — bleeds cover into card body
+- [x] Hover — `-translate-y-1.5`, amber border glow, deep shadow
+
+---
+
+## Admin Panel (low priority, not started)
+- [ ] Suggestion moderation queue — `GET /admin/suggestions`
 - [ ] Approve/reject decisions — `PUT /admin/suggestions/{id}/decision`
 
 ---
@@ -99,112 +142,6 @@ Building the frontend web application for **Bookrithm**, a book tracking and dis
 - **API base URL**: `http://localhost:8080/api/v1`
 - **No icon library, no component library** — pure Tailwind + custom components
 
-
-**Tech Stack**:
-- Next.js 16.2.6 (App Router)
-- React 19.2.4
-- TypeScript 5 (strict)
-- Tailwind CSS 4
-- `@react-oauth/google` for Google Sign-In
-- `openapi-typescript` for type codegen from OpenAPI spec
-- Backend API: `http://localhost:8080/api/v1`
-
-**Learning Goal**: First Next.js + TypeScript project — Java dev background, learning by doing.
-
----
-
-## Phase 1: Foundation & Setup ✅ COMPLETE
-
-- [x] Project initialized with Next.js + TypeScript + Tailwind
-- [x] Project directory structure (`lib/`, `types/`, `components/`, `app/`)
-- [x] TypeScript types via codegen (`npm run generate:types` → `types/generated.ts` → `types/api.ts`)
-- [x] Environment variables (`.env.local`) — API URL + Google Client ID
-- [x] Base API client (`lib/api/client.ts`) — fetch wrapper with auth headers + error handling
-- [x] Auth API service (`lib/api/auth.ts`) — register, getCurrentUser, updateProfile
-- [x] Auth context + hook (`lib/hooks/useAuth.tsx`) — global user state, token persistence
-- [x] Root layout (`app/layout.tsx`) — GoogleOAuthProvider → AuthProvider → Header → children
-- [x] next.config.ts — COOP header fix for Google Sign-In popup
-
----
-
-## Phase 2: Core Features 🚧 IN PROGRESS
-
-### ✅ Done
-- [x] **Landing page** (`app/page.tsx`) — hero + sign-in for guests; dashboard tiles for logged-in users
-- [x] **Header** (`components/layout/Header.tsx`) — nav links: Browse Books (always), My Shelves + username + Sign out (logged-in)
-- [x] **Google Sign-In button** (`components/features/SignInButton.tsx`) — credential flow, routes to /register on 404
-- [x] **Registration page** (`app/register/page.tsx`) — username/displayName/email form, calls authApi.register()
-- [x] **Shelves page** (`app/shelves/page.tsx`) — lists user's shelves with book counts; auth-guarded
-- [x] **Shelves API service** (`lib/api/shelves.ts`)
-- [x] **Books search page** (`app/books/page.tsx`) — debounced search, book card grid, pagination
-- [x] **Books API service** (`lib/api/books.ts`) — searchBooks(), getBook()
-- [x] **Profile page** (`app/profile/page.tsx`) — displays avatar, name, username, bio, reader status; auth-guarded
-
-### 🎯 Current Focus — Core User Loop
-- [ ] **Book detail page** (`app/books/[id]/page.tsx`) — cover, description, categories, add-to-shelf
-- [ ] **Add to shelf** — `PUT /users/me/books/{bookId}/state` from the detail page
-
-### 📋 Up Next
-- [ ] **Profile editing** — wire up "Edit Profile" button, `PUT /users/me`
-- [ ] **Reviews** — write + display multi-dimensional reviews on book detail page
-- [ ] **Shelf book list** — clicking a shelf shows the books inside it
-
----
-
-## Phase 3: Advanced Features (Not Started)
-
-### Suggestions System
-- [ ] Category suggestion form
-- [ ] Trope suggestion form
-- [ ] Content warning suggestion form
-- [ ] User suggestion history
-
-### Admin Panel
-- [ ] Suggestion moderation queue
-- [ ] Approve/reject decisions
-
----
-
-## Technical Decisions Log
-
-### Decided ✅
-- **App Router** (not Pages Router)
-- **Tailwind CSS** inline — dark theme, `zinc-*` palette
-- **TypeScript strict mode**
-- **API Client**: native `fetch` (no Axios)
-- **Token storage**: `localStorage`
-- **Types**: auto-generated via `openapi-typescript`, re-exported from `types/api.ts`
-- **Forms**: native controlled inputs (no form library — keeping it simple)
-- **API base URL**: `http://localhost:8080/api/v1`
-
-### Still Open
-- [ ] Toast/notification system (react-hot-toast, sonner, or custom?)
-- [ ] Icon library (Lucide, Heroicons, or none?)
-- [ ] Global styling pass (after all core features are done)
-
----
-
-## Learning Resources & Notes
-
-### Next.js Key Concepts to Learn
-- [ ] App Router vs Pages Router
-- [ ] Server Components vs Client Components
-- [ ] File-based routing
-- [ ] Layouts and nested routes
-- [ ] Loading and error states
-- [ ] Metadata and SEO
-- [ ] API route handlers (optional, since backend exists)
-
-### TypeScript Concepts
-- [ ] Interface vs Type
-- [ ] Generics for API responses
-- [ ] Type guards
-- [ ] Utility types (Partial, Pick, Omit)
-
-### React Patterns
-- [ ] Custom hooks
-- [ ] Context for global state
-- [ ] Controlled vs uncontrolled components
 - [ ] useEffect dependencies
 
 ---
