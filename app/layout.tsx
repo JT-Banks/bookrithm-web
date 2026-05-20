@@ -44,7 +44,7 @@ export default function RootLayout({
         <GoogleOAuthProvider clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!}>
           <AuthProvider>
             {/* Dark overlay so content stays readable over the background image */}
-            <div className="min-h-full flex flex-col bg-zinc-950/60 backdrop-blur-[1px]">
+            <div className="library-shell min-h-full flex flex-col backdrop-blur-[1px]">
               <Header />
               {children}
             </div>

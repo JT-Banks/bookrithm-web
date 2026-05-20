@@ -13,17 +13,18 @@ export function Header() {
     const active = pathname === href || (href !== '/' && pathname.startsWith(href));
     return `text-sm transition-colors ${
       active
-        ? 'text-zinc-50 font-medium underline underline-offset-4 decoration-zinc-600'
-        : 'text-zinc-400 hover:text-zinc-50'
+        ? 'text-zinc-50 font-medium underline underline-offset-4 decoration-amber-700'
+        : 'library-link'
     }`;
   };
 
   return (
-    <header className="border-b border-zinc-800 bg-zinc-950/80 backdrop-blur-sm px-6 py-4">
+    <header className="border-b border-amber-950/70 bg-[#100803]/82 backdrop-blur-md px-6 py-4 shadow-[0_10px_28px_rgba(0,0,0,0.32)]">
       <div className="mx-auto flex max-w-5xl items-center justify-between">
 
-        <Link href="/" className="flex items-center gap-2 text-xl font-bold tracking-tight text-white">
-          <span className="text-2xl">📚</span> Bookrithm
+        <Link href="/" className="flex items-center gap-2 text-xl font-bold tracking-tight text-zinc-50">
+          <span className="text-2xl drop-shadow-[0_2px_5px_rgba(0,0,0,0.75)]">📚</span>
+          <span className="font-serif">Bookrithm</span>
         </Link>
 
         <nav className="flex items-center gap-6">
@@ -45,7 +46,7 @@ export function Header() {
               <Link href="/profile" className={navLink('/profile')}>
                 {user.displayName}
               </Link>
-              <button onClick={signOut} className="text-sm text-zinc-400 hover:text-zinc-50 transition-colors">
+              <button onClick={signOut} className="library-link text-sm">
                 Sign out
               </button>
             </>
