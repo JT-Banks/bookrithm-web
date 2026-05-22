@@ -92,7 +92,7 @@ function getSpineConfig(
 }
 
 function AntiqueBookend({ side }: { side: 'left' | 'right' }) {
-  const scaleX = side === 'left' ? 1 : -1;
+  const scaleX = side === 'left' ? -1 : 1;
   return (
     <div
       aria-hidden="true"
@@ -102,8 +102,8 @@ function AntiqueBookend({ side }: { side: 'left' | 'right' }) {
         flexShrink:   0,
         width:        '25px',
         height:       '62px',
-        marginRight:  side === 'left' ? '6px' : undefined,
-        marginLeft:   side === 'right' ? '6px' : undefined,
+        marginRight:  side === 'left' ? '1px' : undefined,
+        marginLeft:   side === 'right' ? '1px' : undefined,
         transform:    `scaleX(${scaleX}) translateY(1px)`,
         filter:       'drop-shadow(3px 4px 5px rgba(0,0,0,0.50))',
       }}
@@ -208,7 +208,7 @@ export default function BookSpinePreview({ bookCount, shelfId, arrangement = 'ne
       <div
         className="flex items-end justify-center gap-1"
         style={{
-          minWidth: visible === 1 ? '38px' : undefined,
+          minWidth: visible === 1 ? '30px' : undefined,
         }}
       >
         {Array.from({ length: visible }).map((_, i) => {
