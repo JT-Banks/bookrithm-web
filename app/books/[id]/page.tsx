@@ -248,13 +248,18 @@ export default function BookDetailPage() {
                   <select
                     value={selectedShelfId}
                     onChange={(e) => setSelectedShelfId(e.target.value)}
-                    className="bg-zinc-900 border border-zinc-700 text-zinc-200 text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-zinc-500"
+                    disabled={shelves.length === 0}
+                    className="library-select min-w-48 bg-zinc-900 border border-zinc-700 text-zinc-100 text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-zinc-500 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {shelves.map((shelf) => (
-                      <option key={shelf.id} value={shelf.id}>
-                        {shelf.name}
-                      </option>
-                    ))}
+                    {shelves.length === 0 ? (
+                      <option value="">No shelves available</option>
+                    ) : (
+                      shelves.map((shelf) => (
+                        <option key={shelf.id} value={shelf.id}>
+                          {shelf.name}
+                        </option>
+                      ))
+                    )}
                   </select>
 
                   <button

@@ -46,6 +46,7 @@ export type UpdateUserRequest   = S['UpdateUserRequest'];
 export type ShelfResponse         = S['ShelfResponse'];
 export type CreateShelfRequest    = S['CreateShelfRequest'];
 export type UpdateShelfRequest    = S['UpdateShelfRequest'];
+export type ReorderShelvesRequest = S['ReorderShelvesRequest'];
 export type SetBookStateRequest   = S['SetBookStateRequest'];
 export type UserBookStateResponse = S['UserBookStateResponse'];
 export type UserBookStatePage     = S['UserBookStatePage'];

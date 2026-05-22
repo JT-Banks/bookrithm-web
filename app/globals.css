@@ -94,6 +94,22 @@ body {
     color: #fdf4e3;
   }
 
+  .library-select {
+    color-scheme: dark;
+    background-color: #1a1009;
+  }
+
+  .library-select option {
+    background-color: #1a1009;
+    color: #f0dfc4;
+  }
+
+  .library-select option:checked,
+  .library-select option:hover {
+    background-color: #3e2a15;
+    color: #fdf4e3;
+  }
+
   .library-kicker {
     color: rgba(200, 168, 120, 0.72);
     letter-spacing: 0.08em;

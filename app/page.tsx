@@ -5,51 +5,86 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { SignInButton } from '@/components/features/SignInButton';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// NavTile — a clickable card that links to a section of the app.
-// Props:
-//   href    = where the tile links to
-//   title   = big label
-//   desc    = subtitle
-//   icon    = path to a PNG illustration (preferred)
-//   emoji   = fallback text emoji when no icon image is provided
-//   locked  = if true, renders a disabled-looking tile instead of a link
-//             (used for features that require sign-in)
-// ─────────────────────────────────────────────────────────────────────────────
-function NavTile({
+type Slot = {
+  left: string;
+  top: string;
+  width: string;
+  height: string;
+};
+
+const SLOTS = {
+  plaque: { left: '27.5%', top: '5.3%', width: '45%', height: '22%' },
+  shelves: { left: '16.8%', top: '42.8%', width: '18.5%', height: '17.3%' },
+  browse: { left: '40.8%', top: '42.8%', width: '18.5%', height: '17.3%' },
+  history: { left: '64.3%', top: '42.8%', width: '18.5%', height: '17.3%' },
+  suggest: { left: '24.2%', top: '72.6%', width: '20.5%', height: '17.1%' },
+  profile: { left: '54.1%', top: '72.6%', width: '20.5%', height: '17.1%' },
+} satisfies Record<string, Slot>;
+
+function Ornament() {
+  return (
+    <div className="flex items-center justify-center gap-2" aria-hidden="true">
+      <span className="h-px w-12 bg-gradient-to-r from-transparent to-amber-600/70" />
+      <span className="h-1.5 w-1.5 rotate-45 border border-amber-500/80 bg-[#2a1307]" />
+      <span className="h-px w-12 bg-gradient-to-l from-transparent to-amber-600/70" />
+    </div>
+  );
+}
+
+function CabinetSlot({
+  slot,
   href,
   title,
   desc,
   icon,
-  emoji,
   locked = false,
+  priority = false,
 }: {
+  slot: Slot;
   href: string;
   title: string;
   desc: string;
-  icon?: string;
-  emoji?: string;
+  icon: string;
   locked?: boolean;
+  priority?: boolean;
 }) {
-  const baseStyle =
-    'library-panel-soft flex min-h-[172px] flex-col gap-3 rounded-lg p-6 transition-all duration-200';
+  const content = (
+    <div className="flex h-full w-full flex-col items-center justify-center px-[10%] pb-[18%] pt-[4%] text-center">
+      <Image
+        src={icon}
+        alt=""
+        width={46}
+        height={46}
+        priority={priority}
+        className="mb-[clamp(3px,0.42vw,6px)] h-[clamp(19px,2.25vw,36px)] w-[clamp(19px,2.25vw,36px)] object-contain drop-shadow-[0_6px_9px_rgba(0,0,0,0.72)]"
+        aria-hidden="true"
+      />
+      <div className="flex w-full max-w-[15rem] flex-col items-center">
+        <p className="max-w-full font-serif text-[clamp(13px,1.42vw,21px)] font-semibold leading-none text-[#f7e6c4] drop-shadow-[0_2px_4px_rgba(0,0,0,0.78)]">
+          {title}
+        </p>
+        <p className="mt-[clamp(3px,0.36vw,6px)] max-w-full text-[clamp(7px,0.66vw,11px)] leading-[1.1] text-[#d5ad73] drop-shadow-[0_2px_3px_rgba(0,0,0,0.75)]">
+          {desc}
+        </p>
+      </div>
+    </div>
+  );
 
-  // Render the icon — image takes priority over emoji
-  const iconEl = icon
-    ? <Image src={icon} alt="" aria-hidden="true" width={48} height={48} className="h-12 w-12 object-contain drop-shadow-[0_5px_8px_rgba(0,0,0,0.55)]" />
-    : emoji
-    ? <span className="text-3xl">{emoji}</span>
-    : null;
+  const style = {
+    left: slot.left,
+    top: slot.top,
+    width: slot.width,
+    height: slot.height,
+  };
 
   if (locked) {
     return (
-      <div className={`${baseStyle} opacity-40 cursor-not-allowed`}>
-        {iconEl}
-        <div>
-          <p className="font-serif text-lg font-semibold text-zinc-200">{title}</p>
-          <p className="text-sm text-zinc-500 mt-1">{desc}</p>
-        </div>
-        <span className="text-xs text-zinc-600 mt-auto">Sign in to access</span>
+      <div
+        className="absolute z-[3] opacity-48 grayscale-[0.2]"
+        style={style}
+        aria-disabled="true"
+      >
+        {content}
       </div>
     );
   }
@@ -57,79 +92,128 @@ function NavTile({
   return (
     <Link
       href={href}
-      className={`${baseStyle} hover:-translate-y-1 hover:border-amber-700/55 hover:bg-zinc-900/75 hover:shadow-xl hover:shadow-zinc-950/50 cursor-pointer`}
+      className="group absolute z-[3] rounded-md transition duration-200 hover:bg-amber-200/[0.045] hover:drop-shadow-[0_0_18px_rgba(224,157,68,0.28)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-500"
+      style={style}
     >
-      {iconEl}
-      <div>
-        <p className="font-serif text-lg font-semibold text-zinc-100">{title}</p>
-        <p className="text-sm text-zinc-400 mt-1">{desc}</p>
-      </div>
+      <div className="absolute inset-0 rounded-md opacity-0 shadow-[inset_0_0_18px_rgba(255,198,105,0.18)] transition-opacity duration-200 group-hover:opacity-100" aria-hidden="true" />
+      {content}
     </Link>
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// HomePage — renders differently based on whether the user is signed in.
-// Think of this like a @GetMapping that returns different views based on
-// whether the request has a valid auth token.
-// ─────────────────────────────────────────────────────────────────────────────
+function CabinetContent({ userName }: { userName?: string }) {
+  const signedIn = Boolean(userName);
+
+  return (
+    <section className="relative mx-auto w-full max-w-6xl">
+      <div className="relative aspect-[1672/941] w-full">
+        <Image
+          src="/images/landing_page_content_transparent.png"
+          alt=""
+          fill
+          priority
+          sizes="(max-width: 1280px) 96vw, 1152px"
+          className="pointer-events-none select-none object-contain drop-shadow-[0_34px_70px_rgba(0,0,0,0.62)]"
+          aria-hidden="true"
+        />
+
+        <div
+          className="absolute z-[3] flex flex-col items-center justify-center px-5 text-center"
+          style={{
+            left: SLOTS.plaque.left,
+            top: SLOTS.plaque.top,
+            width: SLOTS.plaque.width,
+            height: SLOTS.plaque.height,
+          }}
+        >
+          <p className="library-kicker mb-2 text-[clamp(9px,0.9vw,13px)] font-semibold tracking-[0.18em] text-[#c69a5d]">
+            Private Library
+          </p>
+          <h1 className="font-serif text-[clamp(24px,3.3vw,52px)] font-bold leading-tight text-[#f7e6c4] drop-shadow-[0_4px_7px_rgba(0,0,0,0.80)]">
+            {signedIn ? `Welcome back, ${userName}` : 'Bookrithm'}
+          </h1>
+          <div className="my-2">
+            <Ornament />
+          </div>
+          <p className="text-[clamp(11px,1.1vw,17px)] text-[#d5ad73] drop-shadow-[0_2px_4px_rgba(0,0,0,0.75)]">
+            {signedIn ? 'Your next great story is waiting.' : 'Track what you read. Discover what you will love.'}
+          </p>
+          {!signedIn && (
+            <div className="mt-3 -translate-y-1.5 scale-90">
+              <SignInButton />
+            </div>
+          )}
+        </div>
+
+        <CabinetSlot
+          slot={SLOTS.shelves}
+          href="/shelves"
+          title="My Shelves"
+          desc="View and manage your reading lists"
+          icon="/images/book_stack.png"
+          locked={!signedIn}
+          priority
+        />
+        <CabinetSlot
+          slot={SLOTS.browse}
+          href="/books"
+          title="Browse Books"
+          desc="Explore the Bookrithm catalog"
+          icon="/images/book_and_magnifyingGlass.png"
+        />
+        <CabinetSlot
+          slot={SLOTS.history}
+          href="/read-log"
+          title="History"
+          desc="Every book you have finished"
+          icon="/images/scroll.png"
+          locked={!signedIn}
+        />
+        <CabinetSlot
+          slot={SLOTS.suggest}
+          href="/suggestions"
+          title="Suggest"
+          desc="Add missing tags and categories"
+          icon="/images/book_and_quill.png"
+          locked={!signedIn}
+        />
+        <CabinetSlot
+          slot={SLOTS.profile}
+          href="/profile"
+          title="My Profile"
+          desc="Edit your bio and reading identity"
+          icon="/images/bound_book.png"
+          locked={!signedIn}
+        />
+      </div>
+    </section>
+  );
+}
+
 export default function HomePage() {
-  // useAuth gives us the current user (null if not signed in) and a loading flag
   const { user, isLoading } = useAuth();
 
-  // While checking auth state, render nothing to avoid a flash of the wrong view
   if (isLoading) return null;
 
-  // ── Logged-in: Dashboard view ─────────────────────────────────────────────
-  if (user) {
-    return (
-      <main className="max-w-4xl mx-auto px-6 pt-10 pb-16">
-        <div className="library-panel mb-10 rounded-lg px-7 py-6">
-          <p className="library-kicker mb-2 text-xs font-semibold">Private Library</p>
-          <h1 className="text-3xl font-bold text-zinc-50">
-            Welcome back, {user.displayName}
-          </h1>
-          <div className="library-divider my-4 max-w-sm" />
-          <p className="text-zinc-300">Where would you like to go?</p>
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-          <NavTile href="/shelves"     title="My Shelves"   desc="View and manage your reading lists"   icon="/images/book_stack.png" />
-          <NavTile href="/books"       title="Browse Books" desc="Explore the Bookrithm catalog"         icon="/images/book_and_magnifyingGlass.png" />
-          <NavTile href="/read-log"    title="History"      desc="Every book you've finished"            icon="/images/scroll.png" />
-          <NavTile href="/suggestions" title="Suggest"      desc="Add missing tags and categories"       icon="/images/book_and_quill.png" />
-          <NavTile href="/profile"     title="My Profile"   desc="Edit your bio and reading identity"    icon="/images/bound_book.png" />
-        </div>
-      </main>
-    );
-  }
-
-  // ── Logged-out: Marketing / hero view ────────────────────────────────────
   return (
-    <main className="max-w-4xl mx-auto px-6 pt-16 pb-12 flex flex-col items-center text-center">
+    <main className="relative min-h-[calc(100vh-65px)] overflow-hidden px-4 pb-10 pt-6 sm:px-6">
+      <Image
+        src="/images/bg-library.png"
+        alt=""
+        fill
+        priority
+        sizes="100vw"
+        className="pointer-events-none select-none object-cover"
+        aria-hidden="true"
+      />
+      <div className="absolute inset-0 bg-black/48 backdrop-blur-[1px]" aria-hidden="true" />
+      <div
+        className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(224,145,54,0.13),transparent_44%),linear-gradient(180deg,rgba(10,4,2,0.08),rgba(10,4,2,0.62))]"
+        aria-hidden="true"
+      />
 
-      {/* Hero */}
-      <div className="text-6xl mb-6 select-none drop-shadow-[0_8px_18px_rgba(0,0,0,0.75)]">📚</div>
-      <p className="library-kicker mb-3 text-xs font-semibold">Old Library Reading Companion</p>
-      <h1 className="text-5xl font-bold tracking-tight text-zinc-50">
-        Bookrithm
-      </h1>
-      <div className="library-divider my-5 w-full max-w-sm" />
-      <p className="text-xl text-zinc-300 max-w-md">
-        Track what you read. Discover what you&apos;ll love.
-      </p>
-
-      {/* Sign-in CTA */}
-      <div className="mt-8 flex flex-col items-center gap-2">
-        <p className="text-sm text-zinc-500">Sign in with Google to get started</p>
-        <SignInButton />
-      </div>
-
-      {/* Feature teaser tiles */}
-      <div className="mt-12 grid grid-cols-1 sm:grid-cols-3 gap-4 w-full text-left">
-        <NavTile href="/books"   title="Browse Books"    desc="Explore the catalog — no account needed" icon="/images/book_and_magnifyingGlass.png" />
-        <NavTile href="/shelves" title="Reading Shelves" desc="Organise Want to Read, Reading, and more" icon="/images/book_stack.png" locked />
-        <NavTile href="/profile" title="Your Profile"    desc="Build your reading identity"              icon="/images/bound_book.png" locked />
+      <div className="relative mx-auto max-w-6xl">
+        <CabinetContent userName={user?.displayName} />
       </div>
     </main>
   );

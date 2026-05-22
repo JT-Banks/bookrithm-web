@@ -383,6 +383,39 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /users/me/shelves/order:
+    put:
+      tags: [shelves]
+      summary: Reorder the authenticated user's shelves
+      operationId: reorderShelves
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReorderShelvesRequest'
+      responses:
+        '200':
+          description: Shelves reordered and returned in new display order
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ShelfResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /users/me/shelves/{shelfId}:
     patch:
       tags: [shelves]
@@ -1064,7 +1097,7 @@ components:
 
     ShelfResponse:
       type: object
-      required: [id, name, isSystem, isPrivate, bookCount]
+      required: [id, name, isSystem, isPrivate, bookCount, displayOrder]
       properties:
         id:
           type: string
@@ -1079,6 +1112,8 @@ components:
           type: integer
           nullable: true
         bookCount:
+          type: integer
+        displayOrder:
           type: integer
 
     SetBookStateRequest:
@@ -1328,6 +1363,16 @@ components:
           nullable: true
         isPrivate:
           type: boolean
+
+    ReorderShelvesRequest:
+      type: object
+      required: [shelfIds]
+      properties:
+        shelfIds:
+          type: array
+          items:
+            type: string
+            format: uuid
 
     ReadLogEntry:
       type: object

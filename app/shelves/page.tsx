@@ -18,9 +18,8 @@ import {
   SYSTEM_SHELF_DECORATIONS, DEFAULT_SHELF_DECORATIONS,
 } from '@/types/shelves';
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
+const SHELF_ORDER_STORAGE_PREFIX = 'bookrithm:shelf-order:';
 
-/** Convert a 6-digit hex color to rgba() with the given alpha (0–1). */
 function hexToRgba(hex: string, alpha: number): string {
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
@@ -28,7 +27,6 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha.toFixed(2)})`;
 }
 
-/** Build the initial customization state for a shelf from system defaults. */
 function defaultSettingsFor(shelf: ShelfResponse): ShelfCustomizationState {
   const light = SYSTEM_SHELF_LIGHT[shelf.name]       ?? DEFAULT_SHELF_LIGHT;
   const decs  = SYSTEM_SHELF_DECORATIONS[shelf.name] ?? DEFAULT_SHELF_DECORATIONS;
@@ -44,262 +42,387 @@ function defaultSettingsFor(shelf: ShelfResponse): ShelfCustomizationState {
   };
 }
 
-// ── Decoration spot ───────────────────────────────────────────────────────────
+function chunkShelves(shelves: ShelfResponse[]): ShelfResponse[][] {
+  const chunks: ShelfResponse[][] = [];
+  for (let i = 0; i < shelves.length; i += 3) {
+    chunks.push(shelves.slice(i, i + 3));
+  }
+  return chunks;
+}
 
-/**
- * Single decoration sitting on the shelf board (left or right end).
- * Asset swap: set `imagePath` in DECORATION_DISPLAY and the <img> renders
- * automatically — no changes needed here.
- */
+function orderShelvesByIds(shelves: ShelfResponse[], orderedIds: string[]): ShelfResponse[] {
+  const byId = new Map(shelves.map(shelf => [shelf.id, shelf]));
+  const ordered = orderedIds
+    .map(id => byId.get(id))
+    .filter((shelf): shelf is ShelfResponse => Boolean(shelf));
+  const orderedIdSet = new Set(ordered.map(shelf => shelf.id));
+  const missing = shelves.filter(shelf => !orderedIdSet.has(shelf.id));
+
+  return [...ordered, ...missing];
+}
+
+function getShelfOrderStorageKey(userId?: string): string | null {
+  return userId ? `${SHELF_ORDER_STORAGE_PREFIX}${userId}` : null;
+}
+
 function DecorationSpot({ item, side }: { item: DecorationItem; side: 'left' | 'right' }) {
   const { emoji, label, imagePath } = DECORATION_DISPLAY[item];
+
   return (
     <div
       title={label}
+      className="absolute z-[6] pointer-events-none select-none"
       style={{
-        position:      'absolute',
-        bottom:        '21.5%',
-        [side]:        side === 'left' ? '9%' : '9.5%',
-        pointerEvents: 'none',
-        userSelect:    'none',
-        zIndex:        5,
-        fontSize:      'clamp(20px, 3vw, 32px)',
-        lineHeight:    1,
-        filter:        'drop-shadow(0 6px 8px rgba(0,0,0,0.72))',
+        bottom:     '9%',
+        [side]:     side === 'left' ? '17.5%' : '16.5%',
+        fontSize:   'clamp(18px, 2.8vw, 34px)',
+        lineHeight: 1,
+        filter:     'drop-shadow(0 6px 8px rgba(0,0,0,0.72))',
       }}
     >
-      {imagePath
-        ? <Image src={imagePath} alt={label} width={30} height={30} style={{ display: 'block' }} />
-        : <span role="img" aria-label={label}>{emoji}</span>
-      }
-    </div>
-  );
-}
-
-// ── Shelf card ─────────────────────────────────────────────────────────────────
-
-function ShelfCard({
-  shelf,
-  settings,
-  isCustomizing,
-  onToggleCustomize,
-  onSettingsChange,
-}: {
-  shelf:             ShelfResponse;
-  settings:          ShelfCustomizationState;
-  isCustomizing:     boolean;
-  onToggleCustomize: () => void;
-  onSettingsChange:  (next: ShelfCustomizationState) => void;
-}) {
-  const {
-    woodStyle, lightEnabled, lightColor, lightIntensity,
-    shadowEnabled, bookArrangement, decorationLeft, decorationRight,
-  } = settings;
-
-  const glowBlur   = Math.round(28 * lightIntensity);
-  const glowSpread = Math.round(4  * lightIntensity);
-  const dropShadow = shadowEnabled ? '0 18px 36px rgba(0,0,0,0.45)' : '0 5px 12px rgba(0,0,0,0.22)';
-  const cardShadow = lightEnabled
-    ? `0 0 ${glowBlur}px ${glowSpread}px ${hexToRgba(lightColor, lightIntensity * 0.18)}, ${dropShadow}`
-    : dropShadow;
-
-  return (
-    <div>
-      {/* Visual shelf — clicking the card navigates to the shelf detail page */}
-      <Link
-        href={`/shelves/${shelf.id}`}
-        className="group block relative transition-all duration-200 hover:-translate-y-[3px]"
-        style={{
-          '--shelf-light-color':     lightColor,
-          '--shelf-light-intensity': lightIntensity,
-          '--shelf-wood-style':      woodStyle,
-          aspectRatio: '2172 / 724',
-          minHeight:   '220px',
-          border:      '1px solid transparent',
-          boxShadow:  cardShadow,
-          transition: 'border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease',
-        } as React.CSSProperties}
-      >
-        <Image
-          src="/images/single_realistic_bookshelf_clean.png"
-          alt=""
-          fill
-          priority={false}
-          sizes="(max-width: 1024px) 100vw, 1024px"
-          className="pointer-events-none select-none object-fill"
-          aria-hidden="true"
-        />
-
-        {/* Lamp glow */}
-        <div
-          aria-hidden="true"
-          style={{
-            position:      'absolute',
-            top:           '11%',
-            left:          '50%',
-            width:         '58%',
-            height:        '52%',
-            transform:     'translateX(-50%)',
-            pointerEvents: 'none',
-            background:    `radial-gradient(ellipse at top, ${hexToRgba(lightColor, 0.75)} 0%, ${hexToRgba(lightColor, 0.24)} 34%, transparent 72%)`,
-            opacity:       lightEnabled ? Math.min(0.72, lightIntensity * 0.95) : 0,
-            transition:    'opacity 0.4s ease',
-            mixBlendMode:   'screen',
-            zIndex:         2,
-          }}
-        />
-        <div
-          aria-hidden="true"
-          style={{
-            position:      'absolute',
-            top:           '13.5%',
-            left:          '50%',
-            width:         '7%',
-            minWidth:      '42px',
-            height:        '3%',
-            minHeight:     '7px',
-            borderRadius:  '999px',
-            transform:     'translateX(-50%)',
-            background:    lightEnabled
-              ? `linear-gradient(90deg, transparent, ${hexToRgba(lightColor, 0.88)}, transparent)`
-              : 'linear-gradient(90deg, transparent, rgba(80,55,32,0.45), transparent)',
-            boxShadow:     lightEnabled ? `0 0 18px ${hexToRgba(lightColor, 0.46)}` : 'none',
-            zIndex:        5,
-          }}
-        />
-
-        {/* Header row */}
-        <div
-          className="absolute z-[6] flex items-start justify-between"
-          style={{
-            top:    '34%',
-            left:   '7%',
-            right:  '7%',
-          }}
-        >
-          <div>
-            <h3
-              className="font-semibold leading-snug"
-              style={{ color: '#f0dfc4', fontSize: 'clamp(16px, 2.15vw, 25px)' }}
-            >
-              {shelf.name}
-            </h3>
-            <p
-              className="mt-0.5"
-              style={{ color: 'rgba(231, 190, 126, 0.78)', fontSize: 'clamp(12px, 1.5vw, 17px)' }}
-            >
-              {shelf.bookCount} {shelf.bookCount === 1 ? 'book' : 'books'}
-            </p>
-          </div>
-
-          <div className="flex items-center gap-1.5 pt-0.5">
-            {shelf.isPrivate && (
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-                className="w-3.5 h-3.5"
-                style={{ color: 'rgba(130, 95, 55, 0.65)' }}
-                aria-label="Private shelf"
-              >
-                <path fillRule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clipRule="evenodd" />
-              </svg>
-            )}
-            {shelf.isSystem && (
-              <span
-                className="rounded-full px-2.5 py-0.5 text-xs"
-                style={{
-                  background: 'rgba(20, 10, 4, 0.48)',
-                  border:     '1px solid rgba(202, 140, 64, 0.36)',
-                  color:      'rgba(232, 190, 126, 0.88)',
-                }}
-              >
-                default
-              </span>
-            )}
-            {/* Customize button — stopPropagation prevents the Link from navigating */}
-            <button
-              type="button"
-              onClick={e => { e.preventDefault(); e.stopPropagation(); onToggleCustomize(); }}
-              aria-label="Customize shelf appearance"
-              aria-pressed={isCustomizing}
-              className="p-1.5 rounded-lg transition-all duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-500"
-              style={{
-                background: isCustomizing ? 'rgba(180, 83, 9, 0.62)' : 'rgba(20, 10, 4, 0.52)',
-                border:     `1px solid ${isCustomizing ? 'rgba(217, 119, 6, 0.72)' : 'rgba(202, 140, 64, 0.32)'}`,
-                color:      isCustomizing ? '#fcd888' : 'rgba(160, 120, 60, 0.70)',
-              }}
-            >
-              {/* Heroicons: adjustments-horizontal */}
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5" aria-hidden="true">
-                <path d="M10 3.75a2 2 0 10-4 0 2 2 0 004 0zM17.25 4.5a.75.75 0 000-1.5h-5.5a.75.75 0 000 1.5h5.5zM5 3.75a.75.75 0 01-.75.75h-1.5a.75.75 0 010-1.5h1.5a.75.75 0 01.75.75zM4.25 17a.75.75 0 000-1.5h-1.5a.75.75 0 000 1.5h1.5zM17.25 17a.75.75 0 000-1.5h-5.5a.75.75 0 000 1.5h5.5zM9 10a.75.75 0 01-.75.75h-5.5a.75.75 0 010-1.5h5.5A.75.75 0 019 10zM17.25 10.75a.75.75 0 000-1.5h-1.5a.75.75 0 000 1.5h1.5zM14 10a2 2 0 10-4 0 2 2 0 004 0zM10 16.25a2 2 0 10-4 0 2 2 0 004 0z" />
-              </svg>
-            </button>
-          </div>
-        </div>
-
-        {/* Book spines */}
-        <div
-          className="absolute z-[4]"
-          style={{
-            left:   '17.5%',
-            right:  '22%',
-            bottom: '21.5%',
-          }}
-        >
-          <BookSpinePreview bookCount={shelf.bookCount} shelfId={shelf.id} arrangement={bookArrangement} />
-        </div>
-
-        {/* Shelf decorations */}
-        {decorationLeft  && <DecorationSpot item={decorationLeft}  side="left"  />}
-        {decorationRight && <DecorationSpot item={decorationRight} side="right" />}
-      </Link>
-
-      {/* Customization panel — expands below the card when active */}
-      {isCustomizing && (
-        <div className="mt-2">
-          <ShelfCustomizationPanel value={settings} onChange={onSettingsChange} />
-        </div>
+      {imagePath ? (
+        <Image src={imagePath} alt={label} width={34} height={34} style={{ display: 'block' }} />
+      ) : (
+        <span role="img" aria-label={label}>{emoji}</span>
       )}
     </div>
   );
 }
 
-// ── Loading skeleton ───────────────────────────────────────────────────────────
+const ROW_FRAMES = [
+  { top: '8.4%',  height: '27.2%' },
+  { top: '39.6%', height: '26.9%' },
+  { top: '70.3%', height: '26.9%' },
+] as const;
 
-function ShelfSkeleton() {
+function ShelfRow({
+  shelf,
+  settings,
+  rowIndex,
+  isCustomizing,
+  onToggleCustomize,
+  onSettingsChange,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onDragEnd,
+  isDragging,
+  isDragTarget,
+}: {
+  shelf:             ShelfResponse;
+  settings:          ShelfCustomizationState;
+  rowIndex:          number;
+  isCustomizing:     boolean;
+  onToggleCustomize: () => void;
+  onSettingsChange:  (next: ShelfCustomizationState) => void;
+  onDragStart:       () => void;
+  onDragOver:        () => void;
+  onDrop:            () => void;
+  onDragEnd:         () => void;
+  isDragging:        boolean;
+  isDragTarget:      boolean;
+}) {
+  const {
+    woodStyle,
+    lightEnabled,
+    lightColor,
+    lightIntensity,
+    shadowEnabled,
+    bookArrangement,
+    decorationLeft,
+    decorationRight,
+  } = settings;
+  const frame = ROW_FRAMES[rowIndex];
+
   return (
     <div
-      className="rounded-2xl overflow-hidden animate-pulse border border-amber-900/20"
-      style={{ background: 'rgba(18, 9, 4, 0.70)' }}
+      draggable
+      onDragStart={(event) => {
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', shelf.id);
+        onDragStart();
+      }}
+      onDragOver={(event) => {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'move';
+        onDragOver();
+      }}
+      onDrop={(event) => {
+        event.preventDefault();
+        onDrop();
+      }}
+      onDragEnd={onDragEnd}
+      className={`absolute left-[4.4%] right-[4.4%] z-[4] cursor-grab transition duration-150 active:cursor-grabbing ${
+        isDragging ? 'scale-[0.985]' : ''
+      }`}
+      style={{
+        top:    frame.top,
+        height: frame.height,
+        filter: [
+          shadowEnabled ? 'drop-shadow(0 12px 18px rgba(0,0,0,0.34))' : undefined,
+          isDragTarget ? 'drop-shadow(0 0 18px rgba(224,157,68,0.34))' : undefined,
+        ].filter(Boolean).join(' ') || undefined,
+        opacity: isDragging ? 0.58 : 1,
+      }}
     >
-      <div className="px-5 pt-5">
-        <div className="h-4 w-40 rounded bg-zinc-800 mb-2" />
-        <div className="h-3 w-20 rounded bg-zinc-800" />
-        <div className="flex items-end gap-1.5 mt-4" style={{ minHeight: '84px' }}>
-          {[64, 72, 60, 76].map((h, i) => (
-            <div key={i} className="w-5 rounded-t bg-zinc-800" style={{ height: `${h}px` }} />
-          ))}
+      {isDragTarget && (
+        <div className="pointer-events-none absolute inset-0 z-[9] rounded-sm border-2 border-amber-400/75 bg-amber-300/[0.07] shadow-[0_0_28px_rgba(245,180,72,0.34),inset_0_0_22px_rgba(245,180,72,0.12)]">
+          <span
+            className="absolute right-[6%] top-[8%] rounded-full px-3 py-1 text-xs font-semibold"
+            style={{
+              background: 'rgba(32, 14, 4, 0.86)',
+              border:     '1px solid rgba(245, 180, 72, 0.68)',
+              color:      '#f9dda5',
+            }}
+          >
+            Drop here
+          </span>
         </div>
+      )}
+
+      {isDragging && (
+        <div className="pointer-events-none absolute inset-0 z-[9] rounded-sm bg-black/18 ring-2 ring-amber-500/60">
+          <span
+            className="absolute left-[5.8%] top-[8%] rounded-full px-3 py-1 text-xs font-semibold"
+            style={{
+              background: 'rgba(32, 14, 4, 0.86)',
+              border:     '1px solid rgba(245, 180, 72, 0.58)',
+              color:      '#f9dda5',
+            }}
+          >
+            Moving shelf
+          </span>
+        </div>
+      )}
+
+      <Link
+        href={`/shelves/${shelf.id}`}
+        className="group absolute inset-0 block rounded-sm transition-all duration-200 hover:bg-amber-200/[0.035] focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-500"
+        style={{
+          '--shelf-light-color':     lightColor,
+          '--shelf-light-intensity': lightIntensity,
+          '--shelf-wood-style':      woodStyle,
+        } as React.CSSProperties}
+      >
+        <div
+          aria-hidden="true"
+          className="absolute inset-x-[8%] inset-y-0 z-[2] transition-opacity duration-300"
+          style={{
+            background: `radial-gradient(ellipse at center, ${hexToRgba(lightColor, 0.32)} 0%, ${hexToRgba(lightColor, 0.12)} 38%, transparent 74%)`,
+            opacity:    lightEnabled ? Math.min(0.64, lightIntensity * 0.88) : 0,
+            mixBlendMode: 'screen',
+          }}
+        />
+
+        <div className="absolute left-[5.8%] top-[22%] z-[6] max-w-[34%]">
+          <h3
+            className="truncate font-semibold leading-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.75)]"
+            style={{ color: '#f8e8c8', fontSize: 'clamp(15px, 2.1vw, 26px)' }}
+          >
+            {shelf.name}
+          </h3>
+          <p
+            className="mt-1 drop-shadow-[0_2px_4px_rgba(0,0,0,0.75)]"
+            style={{ color: 'rgba(244, 188, 93, 0.92)', fontSize: 'clamp(12px, 1.45vw, 18px)' }}
+          >
+            {shelf.bookCount} {shelf.bookCount === 1 ? 'book' : 'books'}
+          </p>
+        </div>
+
+        <div
+          className="absolute bottom-[2%] left-[19%] right-[21%] z-[4]"
+          style={{
+            transform:       'scale(0.78)',
+            transformOrigin: 'left bottom',
+          }}
+        >
+          <BookSpinePreview
+            bookCount={shelf.bookCount}
+            shelfId={shelf.id}
+            arrangement={bookArrangement}
+          />
+        </div>
+
+        {decorationLeft  && <DecorationSpot item={decorationLeft}  side="left"  />}
+        {decorationRight && <DecorationSpot item={decorationRight} side="right" />}
+      </Link>
+
+      <div className="absolute right-[5.8%] top-[22%] z-[8] flex items-center gap-2">
+        <span
+          title="Drag to reorder shelf"
+          className="flex h-7 items-center justify-center gap-1 rounded-full px-2 text-[11px] font-medium uppercase tracking-[0.08em]"
+          style={{
+            background: 'rgba(20, 10, 4, 0.46)',
+            border:     '1px solid rgba(202, 140, 64, 0.28)',
+            color:      'rgba(242, 198, 128, 0.70)',
+          }}
+          aria-hidden="true"
+        >
+          <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor">
+            <path d="M7 4.5A1.5 1.5 0 1 1 4 4.5a1.5 1.5 0 0 1 3 0ZM7 10a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM5.5 17A1.5 1.5 0 1 0 5.5 14a1.5 1.5 0 0 0 0 3ZM16 4.5A1.5 1.5 0 1 1 13 4.5a1.5 1.5 0 0 1 3 0ZM14.5 11.5A1.5 1.5 0 1 0 14.5 8.5a1.5 1.5 0 0 0 0 3ZM16 15.5A1.5 1.5 0 1 1 13 15.5a1.5 1.5 0 0 1 3 0Z" />
+          </svg>
+          Drag
+        </span>
+        {shelf.isPrivate && (
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 20 20"
+            fill="currentColor"
+            className="h-4 w-4"
+            style={{ color: 'rgba(226, 175, 93, 0.72)' }}
+            aria-label="Private shelf"
+          >
+            <path fillRule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clipRule="evenodd" />
+          </svg>
+        )}
+        {shelf.isSystem && (
+          <span
+            className="rounded-full px-3 py-1 text-xs"
+            style={{
+              background: 'rgba(20, 10, 4, 0.58)',
+              border:     '1px solid rgba(202, 140, 64, 0.38)',
+              color:      'rgba(242, 198, 128, 0.92)',
+            }}
+          >
+            default
+          </span>
+        )}
+        <button
+          type="button"
+          draggable={false}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            onToggleCustomize();
+          }}
+          aria-label="Customize shelf appearance"
+          aria-haspopup="menu"
+          aria-pressed={isCustomizing}
+          className="rounded-full px-3 py-1 text-sm transition-all duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-500"
+          style={{
+            background: isCustomizing ? 'rgba(180, 83, 9, 0.62)' : 'rgba(20, 10, 4, 0.58)',
+            border:     `1px solid ${isCustomizing ? 'rgba(217, 119, 6, 0.72)' : 'rgba(202, 140, 64, 0.38)'}`,
+            color:      isCustomizing ? '#fcd888' : 'rgba(242, 198, 128, 0.92)',
+          }}
+        >
+          ...
+        </button>
+
+        {isCustomizing && (
+          <div
+            className="absolute right-0 top-full mt-2 z-30"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <ShelfCustomizationPanel value={settings} onChange={onSettingsChange} />
+          </div>
+        )}
       </div>
-      <div className="h-3.5 bg-zinc-800/60" />
     </div>
   );
 }
 
-// ── Page ───────────────────────────────────────────────────────────────────────
+function BookcaseSection({
+  shelves,
+  customizations,
+  openPanelId,
+  draggedShelfId,
+  dragTargetShelfId,
+  onToggleCustomize,
+  onSettingsChange,
+  onShelfDragStart,
+  onShelfDragOver,
+  onShelfDrop,
+  onShelfDragEnd,
+}: {
+  shelves:            ShelfResponse[];
+  customizations:     Record<string, ShelfCustomizationState>;
+  openPanelId:        string | null;
+  draggedShelfId:     string | null;
+  dragTargetShelfId:  string | null;
+  onToggleCustomize:  (id: string) => void;
+  onSettingsChange:   (id: string, next: ShelfCustomizationState) => void;
+  onShelfDragStart:   (id: string) => void;
+  onShelfDragOver:    (id: string) => void;
+  onShelfDrop:        (id: string) => void;
+  onShelfDragEnd:     () => void;
+}) {
+  return (
+    <div>
+      <div
+        className="relative overflow-visible"
+        style={{
+          aspectRatio: '1456 / 1087',
+          minHeight:   '240px',
+        }}
+      >
+        <Image
+          src="/images/multi_realistic_bookshelf_transparent.png"
+          alt=""
+          fill
+          priority={false}
+          sizes="(max-width: 1024px) 100vw, 1024px"
+          className="pointer-events-none select-none object-contain drop-shadow-[0_24px_42px_rgba(0,0,0,0.55)]"
+          aria-hidden="true"
+        />
+
+        {shelves.map((shelf, index) => {
+          const settings = customizations[shelf.id] ?? defaultSettingsFor(shelf);
+          return (
+            <ShelfRow
+              key={shelf.id}
+              shelf={shelf}
+              settings={settings}
+              rowIndex={index}
+              isCustomizing={openPanelId === shelf.id}
+              isDragging={draggedShelfId === shelf.id}
+              isDragTarget={dragTargetShelfId === shelf.id && draggedShelfId !== shelf.id}
+              onToggleCustomize={() => onToggleCustomize(shelf.id)}
+              onSettingsChange={next => onSettingsChange(shelf.id, next)}
+              onDragStart={() => onShelfDragStart(shelf.id)}
+              onDragOver={() => onShelfDragOver(shelf.id)}
+              onDrop={() => onShelfDrop(shelf.id)}
+              onDragEnd={onShelfDragEnd}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ShelfSkeleton() {
+  return (
+    <div
+      className="relative overflow-hidden animate-pulse"
+      style={{
+        aspectRatio: '1456 / 1087',
+        minHeight:   '240px',
+      }}
+    >
+      <Image
+        src="/images/multi_realistic_bookshelf_transparent.png"
+        alt=""
+        fill
+        priority={false}
+        sizes="(max-width: 1024px) 100vw, 1024px"
+        className="pointer-events-none select-none object-contain opacity-40"
+        aria-hidden="true"
+      />
+    </div>
+  );
+}
 
 export default function ShelvesPage() {
-
   const { user, isLoading: authLoading } = useAuth();
   const router = useRouter();
   const [shelves,        setShelves]        = useState<ShelfResponse[]>([]);
   const [customizations, setCustomizations] = useState<Record<string, ShelfCustomizationState>>({});
   const [openPanelId,    setOpenPanelId]    = useState<string | null>(null);
+  const [draggedShelfId, setDraggedShelfId] = useState<string | null>(null);
+  const [dragTargetShelfId, setDragTargetShelfId] = useState<string | null>(null);
   const [isLoading,      setIsLoading]      = useState(true);
   const [error,          setError]          = useState<string | null>(null);
 
-  // New shelf inline form
   const [isCreating,  setIsCreating]  = useState(false);
   const [newName,     setNewName]     = useState('');
   const [isSavingNew, setIsSavingNew] = useState(false);
@@ -313,6 +436,8 @@ export default function ShelvesPage() {
     if (authLoading || !user) return;
     shelvesApi.getShelves()
       .then(data => {
+        const storageKey = getShelfOrderStorageKey(user.id);
+        if (storageKey) localStorage.setItem(storageKey, JSON.stringify(data.map(shelf => shelf.id)));
         setShelves(data);
         const initial: Record<string, ShelfCustomizationState> = {};
         for (const shelf of data) initial[shelf.id] = defaultSettingsFor(shelf);
@@ -328,7 +453,12 @@ export default function ShelvesPage() {
     setCreateError(null);
     try {
       const created = await shelvesApi.createShelf({ name: newName.trim() });
-      setShelves(prev => [...prev, created]);
+      setShelves(prev => {
+        const next = [...prev, created];
+        const storageKey = getShelfOrderStorageKey(user?.id);
+        if (storageKey) localStorage.setItem(storageKey, JSON.stringify(next.map(shelf => shelf.id)));
+        return next;
+      });
       setCustomizations(prev => ({ ...prev, [created.id]: defaultSettingsFor(created) }));
       setNewName('');
       setIsCreating(false);
@@ -347,35 +477,102 @@ export default function ShelvesPage() {
     setCustomizations(prev => ({ ...prev, [id]: next }));
   }
 
+  function handleShelfDrop(targetShelfId: string) {
+    if (!draggedShelfId || draggedShelfId === targetShelfId) {
+      setDraggedShelfId(null);
+      setDragTargetShelfId(null);
+      return;
+    }
+
+    const draggedIndex = shelves.findIndex(shelf => shelf.id === draggedShelfId);
+    const targetIndex = shelves.findIndex(shelf => shelf.id === targetShelfId);
+
+    if (draggedIndex < 0 || targetIndex < 0) {
+      setDraggedShelfId(null);
+      setDragTargetShelfId(null);
+      return;
+    }
+
+    const previousShelves = shelves;
+    const nextShelves = [...shelves];
+    const [draggedShelf] = nextShelves.splice(draggedIndex, 1);
+    nextShelves.splice(targetIndex, 0, draggedShelf);
+
+    setShelves(nextShelves);
+    setDraggedShelfId(null);
+    setDragTargetShelfId(null);
+    setOpenPanelId(null);
+
+    const nextShelfIds = nextShelves.map(shelf => shelf.id);
+    const storageKey = getShelfOrderStorageKey(user?.id);
+    if (storageKey) localStorage.setItem(storageKey, JSON.stringify(nextShelfIds));
+
+    shelvesApi.reorderShelves({ shelfIds: nextShelfIds })
+      .then(updatedShelves => {
+        setError(null);
+        if (updatedShelves.length > 0) {
+          setShelves(orderShelvesByIds(updatedShelves, nextShelfIds));
+        }
+      })
+      .catch(() => {
+        setShelves(previousShelves);
+        if (storageKey) localStorage.setItem(storageKey, JSON.stringify(previousShelves.map(shelf => shelf.id)));
+        setError('Shelf order could not be saved. Please try again.');
+      });
+  }
+
   if (authLoading) return null;
 
-  return (
-    <main className="mx-auto w-full max-w-5xl px-6 py-10">
+  const bookcases = chunkShelves(shelves);
+  const draggedShelfName = draggedShelfId
+    ? shelves.find(shelf => shelf.id === draggedShelfId)?.name
+    : null;
 
-      {/* Page header */}
-      <div className="flex items-start justify-between mb-8">
+  return (
+    <main className="mx-auto w-full max-w-6xl px-6 py-10">
+      <div className="mb-8 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold" style={{ color: '#f0dfc4' }}>My Shelves</h1>
-          <p className="mt-1 text-sm" style={{ color: '#6b4726' }}>
+          <h1 className="text-4xl font-bold leading-tight" style={{ color: '#f0dfc4' }}>
+            My Shelves
+          </h1>
+          <div className="mt-3 h-px w-44" style={{ background: 'linear-gradient(90deg, rgba(202, 140, 64, 0.76), transparent)' }} />
+          <p className="mt-3 text-lg" style={{ color: '#a87947' }}>
             {user?.displayName}&rsquo;s reading collection
+          </p>
+          <p className="mt-2 text-sm" style={{ color: 'rgba(226, 175, 93, 0.76)' }}>
+            Use the Drag handle on any shelf to reorder your collection.
           </p>
         </div>
 
         {!isCreating && (
           <button
             onClick={() => setIsCreating(true)}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 border border-amber-900/45 hover:border-amber-700/65"
-            style={{ background: 'rgba(55, 32, 12, 0.60)', color: '#c8a472' }}
+            className="flex shrink-0 items-center gap-2 rounded-lg px-5 py-3 text-sm font-medium transition-all duration-200 border border-amber-800/65 hover:border-amber-600/80"
+            style={{ background: 'rgba(55, 32, 12, 0.66)', color: '#e4bf84' }}
           >
             <span aria-hidden="true">+</span> New Shelf
           </button>
         )}
       </div>
 
-      {/* New shelf inline form */}
+      {draggedShelfName && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="sticky top-3 z-40 mb-5 rounded-lg px-4 py-3 text-sm font-medium shadow-[0_14px_28px_rgba(0,0,0,0.34)]"
+          style={{
+            background: 'rgba(32, 14, 4, 0.92)',
+            border:     '1px solid rgba(226, 175, 93, 0.48)',
+            color:      '#f4d6a0',
+          }}
+        >
+          Moving &ldquo;{draggedShelfName}&rdquo;. Drop it over another shelf to place it there.
+        </div>
+      )}
+
       {isCreating && (
         <div
-          className="mb-5 rounded-2xl border border-amber-900/40 flex flex-col gap-3 px-5 py-5"
+          className="mb-5 flex flex-col gap-3 rounded-lg border border-amber-900/40 px-5 py-5"
           style={{ background: 'rgba(18, 9, 4, 0.80)' }}
         >
           <p className="text-sm font-medium" style={{ color: '#c8a472' }}>New shelf</p>
@@ -388,7 +585,7 @@ export default function ShelvesPage() {
               if (e.key === 'Enter')  handleCreate();
               if (e.key === 'Escape') { setIsCreating(false); setNewName(''); setCreateError(null); }
             }}
-            placeholder="Shelf name…"
+            placeholder="Shelf name..."
             maxLength={80}
             className="rounded-lg px-3 py-2 text-sm focus:outline-none border border-amber-900/35 focus:border-amber-700/55 placeholder-zinc-700"
             style={{ background: 'rgba(30, 15, 6, 0.70)', color: '#f0dfc4' }}
@@ -398,14 +595,14 @@ export default function ShelvesPage() {
             <button
               onClick={handleCreate}
               disabled={isSavingNew || !newName.trim()}
-              className="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-40"
+              className="rounded-lg px-4 py-1.5 text-sm font-medium transition-colors disabled:opacity-40"
               style={{ background: '#c8a472', color: '#1a0c04' }}
             >
-              {isSavingNew ? 'Creating…' : 'Create'}
+              {isSavingNew ? 'Creating...' : 'Create'}
             </button>
             <button
               onClick={() => { setIsCreating(false); setNewName(''); setCreateError(null); }}
-              className="px-4 py-1.5 rounded-lg text-sm transition-colors border border-amber-900/30 hover:border-amber-800/50"
+              className="rounded-lg px-4 py-1.5 text-sm transition-colors border border-amber-900/30 hover:border-amber-800/50"
               style={{ background: 'rgba(40, 22, 8, 0.60)', color: '#8a6040' }}
             >
               Cancel
@@ -414,32 +611,35 @@ export default function ShelvesPage() {
         </div>
       )}
 
-      {/* Loading skeletons */}
       {isLoading && (
-        <div className="flex flex-col gap-4">
-          {Array.from({ length: 5 }).map((_, i) => <ShelfSkeleton key={i} />)}
+        <div className="flex flex-col gap-8">
+          {Array.from({ length: 2 }).map((_, i) => <ShelfSkeleton key={i} />)}
         </div>
       )}
 
-      {/* Error state */}
       {error && <p className="text-sm text-red-400">{error}</p>}
 
-      {/* Shelf list */}
       {!isLoading && !error && (
-        <div className="flex flex-col gap-4">
-          {shelves.map(shelf => {
-            const settings = customizations[shelf.id] ?? defaultSettingsFor(shelf);
-            return (
-              <ShelfCard
-                key={shelf.id}
-                shelf={shelf}
-                settings={settings}
-                isCustomizing={openPanelId === shelf.id}
-                onToggleCustomize={() => togglePanel(shelf.id)}
-                onSettingsChange={next => updateSettings(shelf.id, next)}
-              />
-            );
-          })}
+        <div className="flex flex-col gap-8">
+          {bookcases.map((group, index) => (
+            <BookcaseSection
+              key={group.map(shelf => shelf.id).join('-') || index}
+              shelves={group}
+              customizations={customizations}
+              openPanelId={openPanelId}
+              draggedShelfId={draggedShelfId}
+              dragTargetShelfId={dragTargetShelfId}
+              onToggleCustomize={togglePanel}
+              onSettingsChange={updateSettings}
+              onShelfDragStart={setDraggedShelfId}
+              onShelfDragOver={setDragTargetShelfId}
+              onShelfDrop={handleShelfDrop}
+              onShelfDragEnd={() => {
+                setDraggedShelfId(null);
+                setDragTargetShelfId(null);
+              }}
+            />
+          ))}
           {shelves.length === 0 && (
             <p className="text-sm italic" style={{ color: 'rgba(130, 95, 55, 0.60)' }}>
               No shelves yet.
@@ -447,7 +647,6 @@ export default function ShelvesPage() {
           )}
         </div>
       )}
-
     </main>
   );
 }

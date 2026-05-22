@@ -1,6 +1,6 @@
 import { apiClient } from './client';
 import type {
-  ShelfResponse, CreateShelfRequest, UpdateShelfRequest,
+  ShelfResponse, CreateShelfRequest, UpdateShelfRequest, ReorderShelvesRequest,
   SetBookStateRequest, UserBookStateResponse, UserBookStatePage,
   ReadLogEntry, ReadLogPage, ReadStats,
 } from '@/types/api';
@@ -17,6 +17,10 @@ export const shelvesApi = {
 
   updateShelf: async (shelfId: string, body: UpdateShelfRequest): Promise<ShelfResponse> => {
     return apiClient.patch<ShelfResponse>(`/users/me/shelves/${shelfId}`, body, true);
+  },
+
+  reorderShelves: async (body: ReorderShelvesRequest): Promise<ShelfResponse[]> => {
+    return apiClient.put<ShelfResponse[]>('/users/me/shelves/order', body, true);
   },
 
   deleteShelf: async (shelfId: string): Promise<void> => {

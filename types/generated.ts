@@ -162,6 +162,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/users/me/shelves/order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Reorder the authenticated user's shelves */
+        put: operations["reorderShelves"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/users/me/shelves/{shelfId}": {
         parameters: {
             query?: never;
@@ -448,6 +465,7 @@ export interface components {
             isPrivate: boolean;
             maxItems?: number | null;
             bookCount: number;
+            displayOrder: number;
         };
         SetBookStateRequest: {
             /** Format: uuid */
@@ -556,6 +574,9 @@ export interface components {
         UpdateShelfRequest: {
             name?: string | null;
             isPrivate?: boolean;
+        };
+        ReorderShelvesRequest: {
+            shelfIds: string[];
         };
         ReadLogEntry: {
             /** Format: uuid */
@@ -1048,6 +1069,37 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             409: components["responses"]["Conflict"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    reorderShelves: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Request-ID"?: components["parameters"]["XRequestId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReorderShelvesRequest"];
+            };
+        };
+        responses: {
+            /** @description Shelves reordered and returned in new display order */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShelfResponse"][];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
             500: components["responses"]["InternalServerError"];
         };
     };
