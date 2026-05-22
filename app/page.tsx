@@ -150,7 +150,7 @@ function CabinetContent({ userName }: { userName?: string }) {
           href="/shelves"
           title="My Shelves"
           desc="View and manage your reading lists"
-          icon="/images/book_stack.png"
+          icon="/images/books/book_stack.png"
           locked={!signedIn}
           priority
         />
@@ -159,14 +159,14 @@ function CabinetContent({ userName }: { userName?: string }) {
           href="/books"
           title="Browse Books"
           desc="Explore the Bookrithm catalog"
-          icon="/images/book_and_magnifyingGlass.png"
+          icon="/images/books/book_and_magnifyingGlass.png"
         />
         <CabinetSlot
           slot={SLOTS.history}
           href="/read-log"
           title="History"
           desc="Every book you have finished"
-          icon="/images/scroll.png"
+          icon="/images/books/scroll.png"
           locked={!signedIn}
         />
         <CabinetSlot
@@ -174,7 +174,7 @@ function CabinetContent({ userName }: { userName?: string }) {
           href="/suggestions"
           title="Suggest"
           desc="Add missing tags and categories"
-          icon="/images/book_and_quill.png"
+          icon="/images/books/book_and_quill.png"
           locked={!signedIn}
         />
         <CabinetSlot
@@ -182,7 +182,7 @@ function CabinetContent({ userName }: { userName?: string }) {
           href="/profile"
           title="My Profile"
           desc="Edit your bio and reading identity"
-          icon="/images/bound_book.png"
+          icon="/images/books/bound_book.png"
           locked={!signedIn}
         />
       </div>
@@ -198,7 +198,7 @@ export default function HomePage() {
   return (
     <main className="relative min-h-[calc(100vh-65px)] overflow-hidden px-4 pb-10 pt-6 sm:px-6">
       <Image
-        src="/images/bg-library.png"
+        src="/images/backgrounds/bg-library.png"
         alt=""
         fill
         priority

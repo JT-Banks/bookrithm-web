@@ -33,7 +33,7 @@ export default function RootLayout({
       <body
         className="min-h-full flex flex-col text-zinc-100"
         style={{
-          backgroundImage: 'url(/images/bg-library.png)',
+          backgroundImage: 'url(/images/backgrounds/bg-library.png)',
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           backgroundAttachment: 'fixed',

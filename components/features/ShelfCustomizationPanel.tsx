@@ -24,7 +24,7 @@ const WOOD_LABELS: Record<WoodStyle, string> = {
   cherry:    'Cherry',
 };
 
-/** Representative board colour used for the swatch circle. */
+/** Representative finish colour used for the swatch circle. */
 const WOOD_SWATCHES: Record<WoodStyle, string> = {
   oak:       '#c4882a',
   walnut:    '#9a6030',
@@ -171,9 +171,9 @@ export function ShelfCustomizationPanel({ value, onChange }: ShelfCustomizationP
 
       <Divider />
 
-      {/* ── Wood Style ── */}
+      {/* ── Shelf Finish ── */}
       <section className="p-4">
-        <SectionLabel>Wood Style</SectionLabel>
+        <SectionLabel>Shelf Finish</SectionLabel>
         <div className="flex items-center gap-3">
           {(Object.keys(WOOD_STYLES) as WoodStyle[]).map(style => {
             const active = value.woodStyle === style;
@@ -197,7 +197,7 @@ export function ShelfCustomizationPanel({ value, onChange }: ShelfCustomizationP
           })}
         </div>
         <p className="mt-1.5 text-[11px]" style={{ color: C.muted }}>
-          {WOOD_LABELS[value.woodStyle]}
+          {WOOD_LABELS[value.woodStyle]} mood tint
         </p>
       </section>
 

@@ -9,7 +9,7 @@ import { shelvesApi } from '@/lib/api/shelves';
 import type { ShelfResponse } from '@/types/api';
 import BookSpinePreview from '@/components/features/BookSpinePreview';
 import { ShelfCustomizationPanel } from '@/components/features/ShelfCustomizationPanel';
-import type { DecorationItem, ShelfCustomizationState } from '@/types/shelves';
+import type { DecorationItem, ShelfCustomizationState, WoodStyle } from '@/types/shelves';
 import {
   DECORATION_DISPLAY,
   SYSTEM_SHELF_LIGHT,       DEFAULT_SHELF_LIGHT,
@@ -19,6 +19,38 @@ import {
 } from '@/types/shelves';
 
 const SHELF_ORDER_STORAGE_PREFIX = 'bookrithm:shelf-order:';
+
+const SHELF_FINISH_OVERLAYS: Record<WoodStyle, {
+  background: string;
+  mixBlendMode: React.CSSProperties['mixBlendMode'];
+  opacity: number;
+}> = {
+  oak: {
+    background: 'linear-gradient(180deg, rgba(226, 164, 67, 0.20), rgba(132, 77, 24, 0.12))',
+    mixBlendMode: 'soft-light',
+    opacity: 0.72,
+  },
+  walnut: {
+    background: 'linear-gradient(180deg, rgba(126, 76, 33, 0.22), rgba(49, 23, 8, 0.16))',
+    mixBlendMode: 'multiply',
+    opacity: 0.36,
+  },
+  mahogany: {
+    background: 'linear-gradient(180deg, rgba(144, 34, 24, 0.20), rgba(62, 12, 8, 0.18))',
+    mixBlendMode: 'soft-light',
+    opacity: 0.68,
+  },
+  blackwood: {
+    background: 'linear-gradient(180deg, rgba(19, 13, 9, 0.50), rgba(0, 0, 0, 0.28))',
+    mixBlendMode: 'multiply',
+    opacity: 0.58,
+  },
+  cherry: {
+    background: 'linear-gradient(180deg, rgba(178, 72, 35, 0.18), rgba(88, 27, 9, 0.14))',
+    mixBlendMode: 'soft-light',
+    opacity: 0.70,
+  },
+};
 
 function hexToRgba(hex: string, alpha: number): string {
   const r = parseInt(hex.slice(1, 3), 16);
@@ -65,16 +97,27 @@ function getShelfOrderStorageKey(userId?: string): string | null {
   return userId ? `${SHELF_ORDER_STORAGE_PREFIX}${userId}` : null;
 }
 
-function DecorationSpot({ item, side }: { item: DecorationItem; side: 'left' | 'right' }) {
+function DecorationSpot({
+  item,
+  side,
+  bottom,
+}: {
+  item: DecorationItem;
+  side: 'left' | 'right';
+  bottom: string;
+}) {
   const { emoji, label, imagePath } = DECORATION_DISPLAY[item];
+  const position = side === 'left'
+    ? { right: '19%' }
+    : { right: '14.5%' };
 
   return (
     <div
       title={label}
       className="absolute z-[6] pointer-events-none select-none"
       style={{
-        bottom:     '9%',
-        [side]:     side === 'left' ? '17.5%' : '16.5%',
+        bottom,
+        ...position,
         fontSize:   'clamp(18px, 2.8vw, 34px)',
         lineHeight: 1,
         filter:     'drop-shadow(0 6px 8px rgba(0,0,0,0.72))',
@@ -94,6 +137,9 @@ const ROW_FRAMES = [
   { top: '39.6%', height: '26.9%' },
   { top: '70.3%', height: '26.9%' },
 ] as const;
+
+const BOOK_BASELINES = ['2%', '4%', '12%'] as const;
+const DECORATION_BASELINES = ['4%', '6%', '14%'] as const;
 
 function ShelfRow({
   shelf,
@@ -133,6 +179,9 @@ function ShelfRow({
     decorationRight,
   } = settings;
   const frame = ROW_FRAMES[rowIndex];
+  const bookBaseline = BOOK_BASELINES[rowIndex];
+  const decorationBaseline = DECORATION_BASELINES[rowIndex];
+  const finishOverlay = SHELF_FINISH_OVERLAYS[woodStyle];
 
   return (
     <div
@@ -152,12 +201,13 @@ function ShelfRow({
         onDrop();
       }}
       onDragEnd={onDragEnd}
-      className={`absolute left-[4.4%] right-[4.4%] z-[4] cursor-grab transition duration-150 active:cursor-grabbing ${
+      className={`absolute left-[4.4%] right-[4.4%] cursor-grab transition duration-150 active:cursor-grabbing ${
         isDragging ? 'scale-[0.985]' : ''
       }`}
       style={{
         top:    frame.top,
         height: frame.height,
+        zIndex: isCustomizing ? 45 : 4,
         filter: [
           shadowEnabled ? 'drop-shadow(0 12px 18px rgba(0,0,0,0.34))' : undefined,
           isDragTarget ? 'drop-shadow(0 0 18px rgba(224,157,68,0.34))' : undefined,
@@ -214,6 +264,16 @@ function ShelfRow({
           }}
         />
 
+        <div
+          aria-hidden="true"
+          className="absolute inset-x-[4%] inset-y-[2%] z-[3] pointer-events-none transition-opacity duration-300"
+          style={{
+            background:   finishOverlay.background,
+            mixBlendMode: finishOverlay.mixBlendMode,
+            opacity:      finishOverlay.opacity,
+          }}
+        />
+
         <div className="absolute left-[5.8%] top-[22%] z-[6] max-w-[34%]">
           <h3
             className="truncate font-semibold leading-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.75)]"
@@ -230,8 +290,9 @@ function ShelfRow({
         </div>
 
         <div
-          className="absolute bottom-[2%] left-[19%] right-[21%] z-[4]"
+          className="absolute left-[19%] right-[21%] z-[4]"
           style={{
+            bottom:          bookBaseline,
             transform:       'scale(0.78)',
             transformOrigin: 'left bottom',
           }}
@@ -243,11 +304,21 @@ function ShelfRow({
           />
         </div>
 
-        {decorationLeft  && <DecorationSpot item={decorationLeft}  side="left"  />}
-        {decorationRight && <DecorationSpot item={decorationRight} side="right" />}
+        {decorationLeft  && <DecorationSpot item={decorationLeft}  side="left"  bottom={decorationBaseline} />}
+        {decorationRight && <DecorationSpot item={decorationRight} side="right" bottom={decorationBaseline} />}
       </Link>
 
-      <div className="absolute right-[5.8%] top-[22%] z-[8] flex items-center gap-2">
+      <div
+        className="absolute right-[5.8%] top-[22%] z-[60] flex items-center gap-2"
+        draggable={false}
+        onPointerDown={(event) => event.stopPropagation()}
+        onMouseDown={(event) => event.stopPropagation()}
+        onClick={(event) => event.stopPropagation()}
+        onDragStart={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+        }}
+      >
         <span
           title="Drag to reorder shelf"
           className="flex h-7 items-center justify-center gap-1 rounded-full px-2 text-[11px] font-medium uppercase tracking-[0.08em]"
@@ -310,8 +381,16 @@ function ShelfRow({
 
         {isCustomizing && (
           <div
-            className="absolute right-0 top-full mt-2 z-30"
+            role="menu"
+            className="absolute right-0 top-full mt-2 z-[70]"
+            draggable={false}
+            onPointerDown={(event) => event.stopPropagation()}
+            onMouseDown={(event) => event.stopPropagation()}
             onClick={(event) => event.stopPropagation()}
+            onDragStart={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+            }}
           >
             <ShelfCustomizationPanel value={settings} onChange={onSettingsChange} />
           </div>
@@ -356,7 +435,7 @@ function BookcaseSection({
         }}
       >
         <Image
-          src="/images/multi_realistic_bookshelf_transparent.png"
+          src="/images/shelves/multi_realistic_bookshelf_transparent.png"
           alt=""
           fill
           priority={false}
@@ -400,7 +479,7 @@ function ShelfSkeleton() {
       }}
     >
       <Image
-        src="/images/multi_realistic_bookshelf_transparent.png"
+        src="/images/shelves/multi_realistic_bookshelf_transparent.png"
         alt=""
         fill
         priority={false}
@@ -620,25 +699,31 @@ export default function ShelvesPage() {
       {error && <p className="text-sm text-red-400">{error}</p>}
 
       {!isLoading && !error && (
-        <div className="flex flex-col gap-8">
+        <div className="flex flex-col gap-0">
           {bookcases.map((group, index) => (
-            <BookcaseSection
+            <div
               key={group.map(shelf => shelf.id).join('-') || index}
-              shelves={group}
-              customizations={customizations}
-              openPanelId={openPanelId}
-              draggedShelfId={draggedShelfId}
-              dragTargetShelfId={dragTargetShelfId}
-              onToggleCustomize={togglePanel}
-              onSettingsChange={updateSettings}
-              onShelfDragStart={setDraggedShelfId}
-              onShelfDragOver={setDragTargetShelfId}
-              onShelfDrop={handleShelfDrop}
-              onShelfDragEnd={() => {
-                setDraggedShelfId(null);
-                setDragTargetShelfId(null);
+              style={{
+                marginTop: index === 0 ? undefined : '-5.32%',
               }}
-            />
+            >
+              <BookcaseSection
+                shelves={group}
+                customizations={customizations}
+                openPanelId={openPanelId}
+                draggedShelfId={draggedShelfId}
+                dragTargetShelfId={dragTargetShelfId}
+                onToggleCustomize={togglePanel}
+                onSettingsChange={updateSettings}
+                onShelfDragStart={setDraggedShelfId}
+                onShelfDragOver={setDragTargetShelfId}
+                onShelfDrop={handleShelfDrop}
+                onShelfDragEnd={() => {
+                  setDraggedShelfId(null);
+                  setDragTargetShelfId(null);
+                }}
+              />
+            </div>
           ))}
           {shelves.length === 0 && (
             <p className="text-sm italic" style={{ color: 'rgba(130, 95, 55, 0.60)' }}>

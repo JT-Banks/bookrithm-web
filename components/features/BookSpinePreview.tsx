@@ -102,8 +102,8 @@ function AntiqueBookend({ side }: { side: 'left' | 'right' }) {
         flexShrink:   0,
         width:        '25px',
         height:       '62px',
-        marginRight:  side === 'left' ? '4px' : undefined,
-        marginLeft:   side === 'right' ? '4px' : undefined,
+        marginRight:  side === 'left' ? '6px' : undefined,
+        marginLeft:   side === 'right' ? '6px' : undefined,
         transform:    `scaleX(${scaleX}) translateY(1px)`,
         filter:       'drop-shadow(3px 4px 5px rgba(0,0,0,0.50))',
       }}
@@ -200,104 +200,111 @@ export default function BookSpinePreview({ bookCount, shelfId, arrangement = 'ne
   // ── Book spines ─────────────────────────────────────────────────────────────
   return (
     <div
-      className="flex items-end justify-start gap-1 pt-4"
+      className="inline-flex items-end justify-start gap-1 pt-4"
       style={{ minHeight: '132px', lineHeight: 0 }}
       aria-label={`${bookCount} book${bookCount === 1 ? '' : 's'} on shelf`}
     >
       <AntiqueBookend side="left" />
-      {Array.from({ length: visible }).map((_, i) => {
-        const config  = getSpineConfig(arrangement, base, i);
-        const palette = SPINE_PALETTES[(base + i * 3) % SPINE_PALETTES.length];
-        const height  = SPINE_HEIGHTS[ (base + i * 7) % SPINE_HEIGHTS.length ];
+      <div
+        className="flex items-end justify-center gap-1"
+        style={{
+          minWidth: visible === 1 ? '38px' : undefined,
+        }}
+      >
+        {Array.from({ length: visible }).map((_, i) => {
+          const config  = getSpineConfig(arrangement, base, i);
+          const palette = SPINE_PALETTES[(base + i * 3) % SPINE_PALETTES.length];
+          const height  = SPINE_HEIGHTS[ (base + i * 7) % SPINE_HEIGHTS.length ];
 
-        return (
-          <div
-            key={i}
-            aria-hidden="true"
-            style={{
-              position:        'relative',
-              width:           '30px',
-              height:          `${height}px`,
-              background:      palette.bg,
-              backgroundImage:  [
-                'radial-gradient(circle at 35% 24%, rgba(255,218,145,0.12), transparent 18%)',
-                'radial-gradient(circle at 68% 72%, rgba(255,218,145,0.07), transparent 15%)',
-                'repeating-linear-gradient(0deg, transparent 0 14px, rgba(255,255,255,0.035) 14px 15px)',
-                'linear-gradient(90deg, rgba(255,230,168,0.10), transparent 16%, transparent 72%, rgba(0,0,0,0.38))',
-                palette.bg,
-              ].join(', '),
-              border:          `1px solid ${palette.border}`,
-              borderRadius:    '4px 5px 2px 2px',
-              flexShrink:      0,
-              marginLeft:      config.gapBefore > 0 ? `${config.gapBefore}px` : undefined,
-              transform:       `rotate(${config.rotation}deg)`,
-              transformOrigin: 'bottom center',
-              overflow:        'hidden',
-              boxShadow: [
-                'inset 3px 0 4px rgba(255,232,170,0.10)',
-                'inset -7px 0 7px rgba(0,0,0,0.42)',
-                'inset 0 0 12px rgba(0,0,0,0.20)',
-                '3px 3px 7px rgba(0, 0, 0, 0.54)',
-              ].join(', '),
-            }}
-          >
+          return (
             <div
+              key={i}
+              aria-hidden="true"
               style={{
-                position:   'absolute',
-                inset:      0,
-                background: [
-                  'repeating-linear-gradient(90deg, rgba(255,255,255,0.035) 0 1px, transparent 1px 8px)',
-                  'repeating-linear-gradient(0deg, transparent 0 20px, rgba(0,0,0,0.11) 20px 21px)',
+                position:        'relative',
+                width:           '30px',
+                height:          `${height}px`,
+                background:      palette.bg,
+                backgroundImage:  [
+                  'radial-gradient(circle at 35% 24%, rgba(255,218,145,0.12), transparent 18%)',
+                  'radial-gradient(circle at 68% 72%, rgba(255,218,145,0.07), transparent 15%)',
+                  'repeating-linear-gradient(0deg, transparent 0 14px, rgba(255,255,255,0.035) 14px 15px)',
+                  'linear-gradient(90deg, rgba(255,230,168,0.10), transparent 16%, transparent 72%, rgba(0,0,0,0.38))',
+                  palette.bg,
                 ].join(', '),
-                opacity:    0.62,
-                mixBlendMode: 'screen',
+                border:          `1px solid ${palette.border}`,
+                borderRadius:    '4px 5px 2px 2px',
+                flexShrink:      0,
+                marginLeft:      config.gapBefore > 0 ? `${config.gapBefore}px` : undefined,
+                transform:       `rotate(${config.rotation}deg)`,
+                transformOrigin: 'bottom center',
+                overflow:        'hidden',
+                boxShadow: [
+                  'inset 3px 0 4px rgba(255,232,170,0.10)',
+                  'inset -7px 0 7px rgba(0,0,0,0.42)',
+                  'inset 0 0 12px rgba(0,0,0,0.20)',
+                  '3px 3px 7px rgba(0, 0, 0, 0.54)',
+                ].join(', '),
               }}
-            />
-            {[12, 30, height - 22].map((top, bandIndex) => (
+            >
               <div
-                key={bandIndex}
                 style={{
-                  position:     'absolute',
-                  top:          `${top}px`,
-                  left:         '4px',
-                  right:        '5px',
-                  height:       bandIndex === 1 ? '3px' : '5px',
-                  borderRadius: '999px',
-                  background:   `linear-gradient(90deg, transparent, ${palette.band}, transparent)`,
-                  opacity:      bandIndex === 1 ? 0.46 : 0.76,
-                  boxShadow:    '0 1px 2px rgba(0,0,0,0.42)',
+                  position:   'absolute',
+                  inset:      0,
+                  background: [
+                    'repeating-linear-gradient(90deg, rgba(255,255,255,0.035) 0 1px, transparent 1px 8px)',
+                    'repeating-linear-gradient(0deg, transparent 0 20px, rgba(0,0,0,0.11) 20px 21px)',
+                  ].join(', '),
+                  opacity:    0.62,
+                  mixBlendMode: 'screen',
                 }}
               />
-            ))}
-            <div
-              style={{
-                position:     'absolute',
-                top:          `${Math.max(38, height * 0.42)}px`,
-                left:         '7px',
-                right:        '8px',
-                height:       '22px',
-                borderRadius: '3px',
-                background:   `linear-gradient(180deg, rgba(255,230,170,0.10), transparent), ${palette.label}`,
-                border:       `1px solid ${palette.band}66`,
-                boxShadow:    'inset 0 0 4px rgba(0,0,0,0.42)',
-              }}
-            />
-            <div
-              style={{
-                position:   'absolute',
-                top:        `${Math.max(64, height * 0.68)}px`,
-                left:       '50%',
-                width:      '8px',
-                height:     '8px',
-                transform:  'translateX(-50%) rotate(45deg)',
-                border:     `1px solid ${palette.band}99`,
-                background: 'rgba(255,216,132,0.08)',
-                boxShadow:  `0 0 7px ${palette.band}40`,
-              }}
-            />
-          </div>
-        );
-      })}
+              {[12, 30, height - 22].map((top, bandIndex) => (
+                <div
+                  key={bandIndex}
+                  style={{
+                    position:     'absolute',
+                    top:          `${top}px`,
+                    left:         '4px',
+                    right:        '5px',
+                    height:       bandIndex === 1 ? '3px' : '5px',
+                    borderRadius: '999px',
+                    background:   `linear-gradient(90deg, transparent, ${palette.band}, transparent)`,
+                    opacity:      bandIndex === 1 ? 0.46 : 0.76,
+                    boxShadow:    '0 1px 2px rgba(0,0,0,0.42)',
+                  }}
+                />
+              ))}
+              <div
+                style={{
+                  position:     'absolute',
+                  top:          `${Math.max(38, height * 0.42)}px`,
+                  left:         '7px',
+                  right:        '8px',
+                  height:       '22px',
+                  borderRadius: '3px',
+                  background:   `linear-gradient(180deg, rgba(255,230,170,0.10), transparent), ${palette.label}`,
+                  border:       `1px solid ${palette.band}66`,
+                  boxShadow:    'inset 0 0 4px rgba(0,0,0,0.42)',
+                }}
+              />
+              <div
+                style={{
+                  position:   'absolute',
+                  top:        `${Math.max(64, height * 0.68)}px`,
+                  left:       '50%',
+                  width:      '8px',
+                  height:     '8px',
+                  transform:  'translateX(-50%) rotate(45deg)',
+                  border:     `1px solid ${palette.band}99`,
+                  background: 'rgba(255,216,132,0.08)',
+                  boxShadow:  `0 0 7px ${palette.band}40`,
+                }}
+              />
+            </div>
+          );
+        })}
+      </div>
       <AntiqueBookend side="right" />
 
       {/* Overflow badge */}
