@@ -1,5 +1,4 @@
 openapi: 3.0.3
-
 info:
   title: Bookrithm API
   description: Backend API for the Bookrithm book tracking and discovery platform.
@@ -1376,20 +1375,20 @@ components:
 
     ReadLogEntry:
       type: object
-      required: [id, bookId, completedAt]
+      required: [id, completedAt, book, categories]
       properties:
         id:
           type: string
           format: uuid
-        bookId:
-          type: string
-          format: uuid
-        bookTitle:
-          type: string
-          nullable: true
         completedAt:
           type: string
           format: date-time
+        book:
+          $ref: '#/components/schemas/BookResponse'
+        categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/CategoryResponse'
 
     ReadLogPage:
       type: object

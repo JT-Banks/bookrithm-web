@@ -581,11 +581,10 @@ export interface components {
         ReadLogEntry: {
             /** Format: uuid */
             id: string;
-            /** Format: uuid */
-            bookId: string;
-            bookTitle?: string | null;
             /** Format: date-time */
             completedAt: string;
+            book: components["schemas"]["BookResponse"];
+            categories: components["schemas"]["CategoryResponse"][];
         };
         ReadLogPage: {
             content: components["schemas"]["ReadLogEntry"][];

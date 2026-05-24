@@ -1,65 +1,122 @@
 'use client';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SECTION 1 — Imports
-// In Java, these are your import statements. React hooks are the key ones here:
-//   useState  = like a mutable field that triggers a re-render when it changes
-//   useEffect = like a @PostConstruct or a scheduled method — runs after render
-//   useCallback = memoizes a function so it isn't re-created every render
-// ─────────────────────────────────────────────────────────────────────────────
-import { useState, useEffect, useCallback } from 'react';
+/* eslint-disable @next/next/no-img-element, react-hooks/set-state-in-effect */
+
+import Image from 'next/image';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { booksApi } from '@/lib/api/books';
 import { categoriesApi } from '@/lib/api/categories';
 import type { BookResponse, BookPage, CategoryResponse, BookSortBy } from '@/types/api';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SECTION 2 — Book Card sub-component
-// Small, pure display component — no state, just props.
-// In Java terms: a simple POJO renderer. Takes a BookResponse and returns JSX.
-// ─────────────────────────────────────────────────────────────────────────────
-// BookCard is now wrapped in a Link — clicking takes you to /books/:id
+const SORT_OPTIONS: Array<{ value: BookSortBy; label: string; helper: string }> = [
+  { value: 'READS', label: 'Most Read', helper: 'popular reads' },
+  { value: 'SHELVED', label: 'Most Shelved', helper: 'reader shelves' },
+];
+
+function SearchIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none">
+      <path
+        d="m20 20-4.2-4.2m1.2-5.3a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0Z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function SparkleIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none">
+      <path
+        d="M12 3.5 13.9 9l5.6 2-5.6 2L12 18.5 10.1 13l-5.6-2 5.6-2L12 3.5Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+      <path d="m19 16 .7 1.8 1.8.7-1.8.7L19 21l-.7-1.8-1.8-.7 1.8-.7L19 16Z" fill="currentColor" />
+    </svg>
+  );
+}
+
+function OrnateDivider() {
+  return (
+    <div className="flex items-center justify-center gap-4 text-amber-300/70" aria-hidden="true">
+      <span className="h-px w-24 max-w-[28vw] bg-gradient-to-r from-transparent via-amber-700/70 to-amber-300/80" />
+      <span className="relative h-3 w-3 rotate-45 border border-amber-400/70 bg-amber-950/70 shadow-[0_0_18px_rgba(245,158,11,0.35)]" />
+      <span className="h-px w-24 max-w-[28vw] bg-gradient-to-l from-transparent via-amber-700/70 to-amber-300/80" />
+    </div>
+  );
+}
+
+function CategoryButton({
+  isActive,
+  children,
+  onClick,
+}: {
+  isActive: boolean;
+  children: React.ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`rounded-full border px-4 py-2 text-sm font-medium transition-all duration-200 ${
+        isActive
+          ? 'border-amber-300/80 bg-amber-300/15 text-amber-100 shadow-[0_0_24px_rgba(180,117,40,0.25)]'
+          : 'border-amber-900/45 bg-black/30 text-amber-200/75 hover:border-amber-500/70 hover:bg-amber-950/35 hover:text-amber-100'
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
 function BookCard({ book }: { book: BookResponse }) {
+  const hasCover = Boolean(book.coverUrl);
+
   return (
     <Link
       href={`/books/${book.id}`}
-      className="group bg-zinc-900/40 backdrop-blur-sm border border-zinc-800/50 rounded-xl overflow-hidden flex flex-col transition-all duration-200 hover:border-amber-900/60 hover:bg-zinc-900/65 hover:-translate-y-1.5 hover:shadow-xl hover:shadow-zinc-950/60"
+      className="group relative flex min-h-[28rem] flex-col overflow-hidden rounded-[8px] border border-amber-950/70 bg-[#130b07]/80 shadow-[0_24px_60px_rgba(0,0,0,0.42)] transition-all duration-300 hover:-translate-y-1 hover:border-amber-500/65 hover:shadow-[0_28px_75px_rgba(0,0,0,0.62)]"
     >
-      {/* Cover image */}
-      <div className="relative h-56 bg-zinc-800/80 flex items-center justify-center overflow-hidden">
-        {book.coverUrl ? (
-          <>
-            <img
-              src={book.coverUrl}
-              alt={book.title}
-              className="h-full w-full object-cover group-hover:scale-[1.03] transition-transform duration-300"
-            />
-            {/* Gradient bleeds cover into card body — eliminates the harsh line */}
-            <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-zinc-900 to-transparent pointer-events-none" />
-          </>
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(245,158,11,0.17),transparent_38%),linear-gradient(180deg,rgba(255,255,255,0.04),transparent_42%)] opacity-80" />
+      <div className="relative mx-4 mt-4 aspect-[2/3] overflow-hidden rounded-[4px] border border-amber-900/55 bg-[#27150b] shadow-[0_18px_32px_rgba(0,0,0,0.5)]">
+        {hasCover ? (
+          <img
+            src={book.coverUrl ?? undefined}
+            alt={book.title}
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.035]"
+          />
         ) : (
-          <div className="flex flex-col items-center gap-2 text-zinc-600">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1} stroke="currentColor" className="w-10 h-10">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
-            </svg>
-            <span className="text-xs">No cover</span>
-          </div>
+          <Image
+            src="/images/books/no_cover.png"
+            alt=""
+            fill
+            sizes="(max-width: 640px) 42vw, (max-width: 1024px) 25vw, 210px"
+            className="object-cover transition-transform duration-500 group-hover:scale-[1.035]"
+          />
         )}
+        <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/75 to-transparent" />
       </div>
 
-      <div className="p-4 flex flex-col gap-1 flex-1">
-        <h3 className="text-zinc-100 font-semibold leading-snug line-clamp-2 group-hover:text-white transition-colors">
-          {book.title}
-        </h3>
-        <p className="text-zinc-500 text-sm">{book.author}</p>
+      <div className="relative flex flex-1 flex-col gap-3 p-4">
+        <div>
+          <h3 className="font-serif text-lg font-bold leading-snug text-amber-50 line-clamp-2 group-hover:text-white">
+            {book.title}
+          </h3>
+          <p className="mt-1 text-sm text-amber-200/62 line-clamp-1">{book.author}</p>
+        </div>
 
-        <div className="mt-auto pt-2 flex flex-wrap gap-1.5">
-          <span className="text-xs px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400">
+        <div className="mt-auto flex flex-wrap gap-2">
+          <span className="rounded-full border border-amber-900/50 bg-black/35 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-amber-200/70">
             {book.maturity}
           </span>
           {book.isFanfiction && (
-            <span className="text-xs px-2 py-0.5 rounded-full bg-purple-900/60 text-purple-300">
+            <span className="rounded-full border border-purple-400/35 bg-purple-950/35 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-purple-100/80">
               Fanfiction
             </span>
           )}
@@ -69,63 +126,64 @@ function BookCard({ book }: { book: BookResponse }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SECTION 3 — Main page component
-// ─────────────────────────────────────────────────────────────────────────────
+function BookSkeleton() {
+  return (
+    <div className="min-h-[28rem] animate-pulse rounded-[8px] border border-amber-950/55 bg-black/35 p-4">
+      <div className="aspect-[2/3] rounded-[4px] bg-amber-950/35" />
+      <div className="mt-5 h-5 w-3/4 rounded bg-amber-950/40" />
+      <div className="mt-3 h-4 w-1/2 rounded bg-amber-950/30" />
+      <div className="mt-8 h-7 w-24 rounded-full bg-amber-950/30" />
+    </div>
+  );
+}
+
+function getShelfCopy(debouncedQuery: string, activeCategoryId: string | null, sortBy: BookSortBy) {
+  if (debouncedQuery.length >= 2) {
+    return `Results for "${debouncedQuery}"`;
+  }
+
+  if (activeCategoryId) {
+    return 'Filtered by category';
+  }
+
+  return sortBy === 'READS' ? 'Most read in the catalog' : 'Most shelved in the catalog';
+}
+
 export default function BooksPage() {
   const router = useRouter();
-  // useSearchParams lets us read ?categoryId=... from the URL on initial load,
-  // so a link like /books?categoryId=<uuid> (from the book detail page) arrives
-  // with the filter already active.
   const searchParams = useSearchParams();
 
-  // ── State ──────────────────────────────────────────────────────────────────
-  const [query, setQuery]       = useState('');
+  const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
-  const [books, setBooks]       = useState<BookResponse[]>([]);
-  const [page, setPage]         = useState<BookPage | null>(null);
+  const [books, setBooks] = useState<BookResponse[]>([]);
+  const [page, setPage] = useState<BookPage | null>(null);
   const [currentPage, setCurrentPage] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError]       = useState<string | null>(null);
-
-  // ── Category filter state ──────────────────────────────────────────────────
-  const [allCategories,    setAllCategories]    = useState<CategoryResponse[]>([]);
-  const [activeCategoryId, setActiveCategoryId] = useState<string | null>(
-    searchParams.get('categoryId'),
-  );
+  const [error, setError] = useState<string | null>(null);
+  const [allCategories, setAllCategories] = useState<CategoryResponse[]>([]);
+  const [activeCategoryId, setActiveCategoryId] = useState<string | null>(searchParams.get('categoryId'));
   const [sortBy, setSortBy] = useState<BookSortBy>('READS');
 
-  // Load the full category list once on mount (used for the filter pill row)
   useEffect(() => {
-    categoriesApi.listCategories()
+    categoriesApi
+      .listCategories()
       .then((data) => setAllCategories(data.content))
-      .catch(() => {}); // non-critical — filter pills just won't appear
+      .catch(() => {});
   }, []);
 
-  // ── Debounce Effect ────────────────────────────────────────────────────────
-  // "Debouncing" = wait for the user to stop typing before firing the search.
-  // Without this, we'd call the API on every single keystroke.
-  // This useEffect watches `query` and sets a 400ms timer.
-  // If the user types again before 400ms, the timer resets (clearTimeout).
-  // In Java, think of it like a ScheduledExecutorService that reschedules itself.
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedQuery(query);
-      setCurrentPage(0); // reset to page 0 when the search term changes
+      setCurrentPage(0);
     }, 400);
 
-    // This return function is the "cleanup" — runs when the effect fires again
-    // (i.e. when query changes before the timer fires)
     return () => clearTimeout(timer);
-  }, [query]); // ← only re-runs when `query` changes
+  }, [query]);
 
-  // ── Fetch Effect ───────────────────────────────────────────────────────────
-  // useCallback memoizes the fetchBooks function so it has a stable reference.
-  // Without this, it would be a new function object every render, which would
-  // cause the useEffect below to run in an infinite loop.
   const fetchBooks = useCallback(async () => {
     setIsLoading(true);
     setError(null);
+
     try {
       const result = await booksApi.searchBooks({
         q: debouncedQuery.length >= 2 ? debouncedQuery : undefined,
@@ -144,180 +202,204 @@ export default function BooksPage() {
     }
   }, [debouncedQuery, currentPage, activeCategoryId, sortBy]);
 
-  // This effect calls fetchBooks whenever debouncedQuery or currentPage changes
   useEffect(() => {
     fetchBooks();
   }, [fetchBooks]);
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  const shelfCopy = getShelfCopy(debouncedQuery, activeCategoryId, sortBy);
+
   return (
-    <main className="max-w-6xl mx-auto px-6 py-10">
+    <main className="relative min-h-screen overflow-hidden bg-[#080503] text-amber-50">
+      <Image
+        src="/images/backgrounds/browse_page_background"
+        alt=""
+        fill
+        priority
+        sizes="100vw"
+        className="object-cover opacity-70"
+      />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_48%_9%,rgba(255,221,158,0.16),transparent_28%),linear-gradient(180deg,rgba(5,3,2,0.28),rgba(5,3,2,0.78)_56%,rgba(5,3,2,0.94))]" />
+      <div className="absolute inset-x-0 top-0 h-44 bg-gradient-to-b from-black/55 to-transparent" />
 
-      {/* Page header */}
-      <h1 className="text-3xl font-bold text-white mb-2">Browse Books</h1>
-      <p className="text-zinc-400 mb-8">
-        {debouncedQuery.length >= 2
-          ? `Results for "${debouncedQuery}"`
-          : activeCategoryId
-          ? 'Filtered by category'
-          : sortBy === 'READS' ? 'Most read in the catalog' : 'Most shelved in the catalog'}
-      </p>
-
-      {/* ── Search + filter bar ── */}
-      <div className="mb-8 flex flex-col gap-3">
-        {/* Sort toggle — only meaningful when not doing a text search */}
-        {debouncedQuery.length < 2 && (
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-zinc-500">Sort:</span>
-            {(['READS', 'SHELVED'] as BookSortBy[]).map((option) => (
-              <button
-                key={option}
-                onClick={() => { setSortBy(option); setCurrentPage(0); }}
-                className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                  sortBy === option
-                    ? 'bg-zinc-200 text-zinc-900'
-                    : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200'
-                }`}
-              >
-                {option === 'READS' ? 'Most read' : 'Most shelved'}
-              </button>
-            ))}
+      <div className="relative mx-auto flex w-full max-w-7xl flex-col px-5 py-10 sm:px-8 lg:px-10">
+        <section className="mx-auto flex w-full max-w-5xl flex-col items-center text-center">
+          <p className="mb-3 text-sm font-semibold uppercase tracking-[0.34em] text-amber-300/70">
+            Bookrithm Archives
+          </p>
+          <h1 className="font-serif text-5xl font-bold leading-none text-amber-50 drop-shadow-[0_4px_20px_rgba(0,0,0,0.65)] sm:text-6xl lg:text-7xl">
+            Browse Books
+          </h1>
+          <p className="mt-5 max-w-2xl text-base leading-7 text-amber-100/72 sm:text-lg">
+            Search the catalog, wander through reader-favorite shelves, and uncover the stories tucked into the stacks.
+          </p>
+          <div className="mt-7">
+            <OrnateDivider />
           </div>
-        )}
+        </section>
 
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search by title or author..."
-          className="w-full max-w-xl bg-zinc-900 border border-zinc-700 text-white rounded-lg px-4 py-3 focus:outline-none focus:border-zinc-500 placeholder-zinc-500"
-        />
-        {query.length === 1 && (
-          <p className="text-zinc-500 text-sm">Type at least 2 characters to search</p>
-        )}
+        <section className="mx-auto mt-9 w-full max-w-6xl rounded-[8px] border border-amber-950/65 bg-black/42 p-4 shadow-[0_24px_90px_rgba(0,0,0,0.52)] backdrop-blur-md sm:p-5">
+          <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
+            <label className="relative block">
+              <span className="sr-only">Search by title or author</span>
+              <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-amber-200/55">
+                <SearchIcon />
+              </span>
+              <input
+                type="text"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search by title or author..."
+                className="h-14 w-full rounded-[8px] border border-amber-900/55 bg-[#100905]/85 px-12 pr-5 text-base text-amber-50 outline-none transition-colors placeholder:text-amber-200/35 focus:border-amber-400/75 focus:bg-black/70"
+              />
+            </label>
 
-        {/* Category filter — only rendered once categories have loaded */}
-        {allCategories.length > 0 && (
-          <div className="flex items-center gap-3 flex-wrap">
-            <span className="text-sm text-zinc-500">Filter by category:</span>
-
-            {/* "All" pill — clears the filter */}
-            <button
-              onClick={() => {
-                setActiveCategoryId(null);
-                setCurrentPage(0);
-                router.replace('/books'); // remove ?categoryId from URL
-              }}
-              className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                activeCategoryId === null
-                  ? 'bg-zinc-200 text-zinc-900'
-                  : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200'
-              }`}
-            >
-              All
-            </button>
-
-            {/* One pill per category */}
-            {allCategories.map((cat) => (
-              <button
-                key={cat.id}
-                onClick={() => {
-                  setActiveCategoryId(cat.id);
-                  setCurrentPage(0);
-                  router.replace(`/books?categoryId=${cat.id}`);
-                }}
-                className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                  activeCategoryId === cat.id
-                    ? 'bg-zinc-200 text-zinc-900'
-                    : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200'
-                }`}
-              >
-                {cat.name}
-              </button>
-            ))}
+            {debouncedQuery.length < 2 && (
+              <div className="flex flex-wrap justify-start gap-2 lg:justify-end">
+                {SORT_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    onClick={() => {
+                      setSortBy(option.value);
+                      setCurrentPage(0);
+                    }}
+                    className={`min-h-14 rounded-[8px] border px-4 text-left transition-all duration-200 ${
+                      sortBy === option.value
+                        ? 'border-amber-300/75 bg-amber-300/14 text-amber-50 shadow-[0_0_28px_rgba(217,119,6,0.22)]'
+                        : 'border-amber-950/65 bg-black/35 text-amber-200/68 hover:border-amber-500/65 hover:text-amber-100'
+                    }`}
+                  >
+                    <span className="block text-sm font-semibold">{option.label}</span>
+                    <span className="block text-xs text-amber-200/45">{option.helper}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
-        )}
-      </div>
 
-      {/* Error state */}
-      {error && (
-        <p className="text-red-400 mb-6">{error}</p>
-      )}
+          {query.length === 1 && (
+            <p className="mt-3 text-sm text-amber-200/55">Type at least 2 characters to search</p>
+          )}
 
-      {/* Loading skeleton — animated placeholder cards while fetching */}
-      {isLoading && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-8">
-          {Array.from({ length: 10 }).map((_, i) => (
-            <div key={i} className="bg-zinc-900 rounded-xl overflow-hidden animate-pulse">
-              <div className="h-56 bg-zinc-800" />
-              <div className="p-4 flex flex-col gap-2">
-                <div className="h-4 bg-zinc-800 rounded w-3/4" />
-                <div className="h-3 bg-zinc-800 rounded w-1/2" />
+          {allCategories.length > 0 && (
+            <div className="mt-5 border-t border-amber-950/55 pt-5">
+              <div className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.2em] text-amber-300/58">
+                <SparkleIcon />
+                Categories
+              </div>
+              <div className="flex flex-wrap gap-2.5">
+                <CategoryButton
+                  isActive={activeCategoryId === null}
+                  onClick={() => {
+                    setActiveCategoryId(null);
+                    setCurrentPage(0);
+                    router.replace('/books');
+                  }}
+                >
+                  All
+                </CategoryButton>
+
+                {allCategories.map((category) => (
+                  <CategoryButton
+                    key={category.id}
+                    isActive={activeCategoryId === category.id}
+                    onClick={() => {
+                      setActiveCategoryId(category.id);
+                      setCurrentPage(0);
+                      router.replace(`/books?categoryId=${category.id}`);
+                    }}
+                  >
+                    {category.name}
+                  </CategoryButton>
+                ))}
               </div>
             </div>
-          ))}
-        </div>
-      )}
+          )}
+        </section>
 
-      {/* Empty state — only show when not loading */}
-      {!isLoading && books.length === 0 && !error && (
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900 px-6 py-14 text-center">
-          <p className="text-zinc-300 font-medium mb-1">
-            {debouncedQuery.length >= 2 && activeCategoryId
-              ? `No books found for "${debouncedQuery}" in this category`
-              : debouncedQuery.length >= 2
-              ? `No books found for "${debouncedQuery}"`
-              : activeCategoryId
-              ? 'No books tagged with this category yet.'
-              : 'No books in the catalog yet.'}
-          </p>
-          <p className="text-zinc-500 text-sm mt-1">
-            {activeCategoryId
-              ? 'Try clearing the category filter or searching with different terms.'
-              : debouncedQuery.length >= 2
-              ? 'Try a different title or author name.'
-              : ''}
-          </p>
-        </div>
-      )}
-
-      {/* Book grid */}
-      {!isLoading && books.length > 0 && (
-        <>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-8">
-            {books.map((book) => (
-              // key= is required by React when rendering a list — like a Map key.
-              // It helps React track which items changed/moved/were removed.
-              <BookCard key={book.id} book={book} />
-            ))}
+        <section className="mx-auto mt-10 w-full max-w-7xl">
+          <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.28em] text-amber-300/60">Catalog Selection</p>
+              <h2 className="mt-2 font-serif text-4xl font-bold text-amber-50">Trending Now</h2>
+              <p className="mt-2 text-amber-200/60">{shelfCopy}</p>
+            </div>
+            {page && page.page.totalElements > 0 && (
+              <p className="text-sm text-amber-200/52">
+                {page.page.totalElements.toLocaleString()} volumes found
+              </p>
+            )}
           </div>
 
-          {/* Pagination — only render if there's more than one page */}
-          {page && page.page.totalPages > 1 && (
-            <div className="flex items-center gap-4 justify-center">
-              <button
-                onClick={() => setCurrentPage((p) => Math.max(0, p - 1))}
-                disabled={currentPage === 0}
-                className="px-4 py-2 rounded-lg bg-zinc-800 text-white disabled:opacity-40 hover:bg-zinc-700 transition-colors"
-              >
-                Previous
-              </button>
-
-              <span className="text-zinc-400 text-sm">
-                Page {currentPage + 1} of {page.page.totalPages}
-              </span>
-
-              <button
-                onClick={() => setCurrentPage((p) => Math.min(page.page.totalPages - 1, p + 1))}
-                disabled={currentPage >= page.page.totalPages - 1}
-                className="px-4 py-2 rounded-lg bg-zinc-800 text-white disabled:opacity-40 hover:bg-zinc-700 transition-colors"
-              >
-                Next
-              </button>
+          {error && (
+            <div className="mb-6 rounded-[8px] border border-red-500/35 bg-red-950/40 px-5 py-4 text-red-100">
+              {error}
             </div>
           )}
-        </>
-      )}
+
+          {isLoading && (
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+              {Array.from({ length: 10 }).map((_, index) => (
+                <BookSkeleton key={index} />
+              ))}
+            </div>
+          )}
+
+          {!isLoading && books.length === 0 && !error && (
+            <div className="rounded-[8px] border border-amber-950/65 bg-black/45 px-6 py-16 text-center shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur-sm">
+              <p className="font-serif text-3xl font-bold text-amber-50">
+                {debouncedQuery.length >= 2 && activeCategoryId
+                  ? `No books found for "${debouncedQuery}" in this category`
+                  : debouncedQuery.length >= 2
+                    ? `No books found for "${debouncedQuery}"`
+                    : activeCategoryId
+                      ? 'No books tagged with this category yet.'
+                      : 'No books in the catalog yet.'}
+              </p>
+              <p className="mx-auto mt-3 max-w-xl text-amber-200/58">
+                {activeCategoryId
+                  ? 'Try clearing the category filter or searching with different terms.'
+                  : debouncedQuery.length >= 2
+                    ? 'Try a different title or author name.'
+                    : 'Once books are added, this room will start to fill up.'}
+              </p>
+            </div>
+          )}
+
+          {!isLoading && books.length > 0 && (
+            <>
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                {books.map((book) => (
+                  <BookCard key={book.id} book={book} />
+                ))}
+              </div>
+
+              {page && page.page.totalPages > 1 && (
+                <div className="mt-10 flex items-center justify-center gap-4">
+                  <button
+                    onClick={() => setCurrentPage((previousPage) => Math.max(0, previousPage - 1))}
+                    disabled={currentPage === 0}
+                    className="rounded-full border border-amber-900/55 bg-black/45 px-5 py-2.5 text-sm font-semibold text-amber-100 transition-colors hover:border-amber-400/65 hover:bg-amber-950/35 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    Previous
+                  </button>
+
+                  <span className="text-sm text-amber-200/58">
+                    Page {currentPage + 1} of {page.page.totalPages}
+                  </span>
+
+                  <button
+                    onClick={() => setCurrentPage((previousPage) => Math.min(page.page.totalPages - 1, previousPage + 1))}
+                    disabled={currentPage >= page.page.totalPages - 1}
+                    className="rounded-full border border-amber-900/55 bg-black/45 px-5 py-2.5 text-sm font-semibold text-amber-100 transition-colors hover:border-amber-400/65 hover:bg-amber-950/35 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </section>
+      </div>
     </main>
   );
 }
