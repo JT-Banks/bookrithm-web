@@ -1,12 +1,6 @@
 'use client';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SECTION 1 — Imports
-// useParams is the client-component way to read dynamic route segments.
-// In Next.js App Router (this version), a Server Component receives params as a
-// Promise prop, but Client Components (which need hooks) use useParams() instead.
-// ─────────────────────────────────────────────────────────────────────────────
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { booksApi } from '@/lib/api/books';
@@ -14,51 +8,63 @@ import { shelvesApi } from '@/lib/api/shelves';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { ReviewSection } from '@/components/features/ReviewSection';
 import { SuggestionForm } from '@/components/features/SuggestionForm';
-import type { BookResponse, CategoryWeightResponse, ShelfResponse } from '@/types/api';
+import type { BookResponse, CategoryWeightResponse, ReviewResponse, ShelfResponse } from '@/types/api';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SECTION 2 — Category weight bar sub-component
-// The category name is now a Link — clicking it navigates to /books?categoryId=
-// so the user can browse all books in that same category.
-// ─────────────────────────────────────────────────────────────────────────────
-function CategoryBar({ item }: { item: CategoryWeightResponse }) {
+// ── Tag pill ──────────────────────────────────────────────────────────────────
+function TagPill({ item }: { item: CategoryWeightResponse }) {
+  return (
+    <Link
+      href={`/books?categoryId=${item.category.id}`}
+      className="inline-flex items-center gap-1.5 rounded-full border border-zinc-700 bg-zinc-900/60 px-3 py-1.5 text-sm text-zinc-300 transition-colors hover:border-amber-600/60 hover:text-white"
+    >
+      {item.category.name}
+      {item.weight > 0 && (
+        <span className="rounded-full bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-500">
+          {item.weight}%
+        </span>
+      )}
+    </Link>
+  );
+}
+
+// ── Review summary bar (amber filled) ────────────────────────────────────────
+function SummaryBar({ label, value }: { label: string; value: number }) {
   return (
     <div className="flex items-center gap-3">
-      {/* Category name — clicking navigates to the category browse view */}
-      <Link
-        href={`/books?categoryId=${item.category.id}`}
-        className="text-zinc-300 text-sm w-40 shrink-0 truncate hover:text-white hover:underline underline-offset-2 transition-colors"
-      >
-        {item.category.name}
-      </Link>
-
-      {/* Track (background) + fill (foreground) — like a progress bar */}
-      <div className="flex-1 h-2 bg-zinc-800 rounded-full overflow-hidden">
+      <span className="w-28 shrink-0 text-sm text-zinc-400">{label}</span>
+      <div className="h-2 flex-1 overflow-hidden rounded-full bg-zinc-800">
         <div
-          className="h-full bg-zinc-400 rounded-full transition-all"
-          style={{ width: `${item.weight}%` }}
+          className="h-full rounded-full bg-[#d6a84f]"
+          style={{ width: `${(value / 10) * 100}%` }}
         />
       </div>
-
-      {/* Numeric weight */}
-      <span className="text-zinc-500 text-xs w-8 text-right shrink-0">
-        {item.weight}
-      </span>
+      <span className="w-12 shrink-0 text-right text-sm text-zinc-300">{value.toFixed(1)}/10</span>
     </div>
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SECTION 3 — Main page component
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function formatSource(source: string) {
+  return source.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+const SUMMARY_DIMS = [
+  { key: 'overall'      as const, label: 'Overall' },
+  { key: 'storytelling' as const, label: 'Storytelling' },
+  { key: 'characters'   as const, label: 'Characters' },
+  { key: 'worldbuilding'as const, label: 'Worldbuilding' },
+  { key: 'pacing'       as const, label: 'Pacing' },
+  { key: 'grammar'      as const, label: 'Grammar' },
+];
+
+// ── Main page component ───────────────────────────────────────────────────────
 export default function BookDetailPage() {
-  // ── Read the :id from the URL ──────────────────────────────────────────────
-  // useParams() returns an object with each dynamic segment as a key.
-  // For app/books/[id]/page.tsx, params.id is the UUID from the URL.
-  const params = useParams<{ id: string }>();
-  const bookId = params.id;
-  const router = useRouter();
+  const params   = useParams<{ id: string }>();
+  const bookId   = params.id;
+  const router   = useRouter();
   const { user } = useAuth();
+
+  const reviewSectionRef = useRef<HTMLDivElement>(null);
 
   // ── State ──────────────────────────────────────────────────────────────────
   const [book,       setBook]       = useState<BookResponse | null>(null);
@@ -66,6 +72,13 @@ export default function BookDetailPage() {
   const [shelves,    setShelves]    = useState<ShelfResponse[]>([]);
   const [isLoading,  setIsLoading]  = useState(true);
   const [error,      setError]      = useState<string | null>(null);
+  const [categoriesError, setCategoriesError] = useState(false);
+
+  // Reviews — lifted here so we can compute the summary in the page layout
+  const [reviews, setReviews] = useState<ReviewResponse[]>([]);
+
+  // Controls the ReviewSection's write form (triggered by header button)
+  const [openReviewForm, setOpenReviewForm] = useState(false);
 
   // Shelf selector state
   const [selectedShelfId, setSelectedShelfId] = useState('');
@@ -73,16 +86,26 @@ export default function BookDetailPage() {
   const [addSuccess,      setAddSuccess]        = useState<string | null>(null);
   const [addError,        setAddError]          = useState<string | null>(null);
 
-  // Whether the suggestion form is open (collapsed by default)
+  // Suggestion form toggle (in Categories & Tags card)
   const [showSuggestionForm, setShowSuggestionForm] = useState(false);
 
-  // ── Fetch book data ────────────────────────────────────────────────────────
-  // We kick off two parallel requests using Promise.allSettled — like calling
-  // two @Async methods and waiting for both to complete.
-  // allSettled (vs Promise.all) means if one fails, we still get the other result.
+  // ── Computed: review summary averages ─────────────────────────────────────
+  const reviewSummary = useMemo(() => {
+    if (reviews.length === 0) return null;
+    const result: Partial<Record<typeof SUMMARY_DIMS[number]['key'], number>> = {};
+    for (const dim of SUMMARY_DIMS) {
+      const vals = reviews.map(r => r[dim.key]).filter((v): v is number => v != null);
+      if (vals.length > 0) result[dim.key] = vals.reduce((a, b) => a + b, 0) / vals.length;
+    }
+    return result;
+  }, [reviews]);
+
+  const avgScore   = reviewSummary?.overall ?? null;
+  const reviewCount = reviews.length;
+
+  // ── Fetch book + categories ────────────────────────────────────────────────
   useEffect(() => {
     if (!bookId) return;
-
     const fetchData = async () => {
       setIsLoading(true);
       setError(null);
@@ -99,44 +122,36 @@ export default function BookDetailPage() {
       }
 
       if (categoriesResult.status === 'fulfilled') {
-        // Guard against undefined/null — backend may return empty body if no categories
         const values = Array.isArray(categoriesResult.value) ? categoriesResult.value : [];
-        const sorted = [...values].sort((a, b) => b.weight - a.weight);
-        setCategories(sorted);
+        setCategories([...values].sort((a, b) => b.weight - a.weight));
+      } else {
+        setCategoriesError(true);
       }
 
       setIsLoading(false);
     };
-
     fetchData();
   }, [bookId]);
 
-  // ── Fetch user's shelves (only if logged in) ───────────────────────────────
-  // Separate effect so it doesn't block the book from rendering.
+  // ── Fetch user's shelves ───────────────────────────────────────────────────
   useEffect(() => {
     if (!user) return;
-
     shelvesApi.getShelves()
       .then((data) => {
         setShelves(data);
-        // Pre-select the first shelf as a sensible default
         if (data.length > 0) setSelectedShelfId(data[0].id);
       })
-      .catch(() => {
-        // Not critical — shelf selector just won't appear
-      });
+      .catch(() => {});
   }, [user]);
 
-  // ── Handle "Add to Shelf" button click ────────────────────────────────────
+  // ── Add to Shelf ───────────────────────────────────────────────────────────
   const handleAddToShelf = async () => {
     if (!selectedShelfId) return;
     setIsAdding(true);
     setAddError(null);
     setAddSuccess(null);
-
     try {
       const result = await shelvesApi.setBookState(bookId, { shelfId: selectedShelfId });
-      // result.shelfName comes from the API so we know which shelf it landed on
       setAddSuccess(`Added to "${result.shelfName}"`);
     } catch {
       setAddError('Could not add book to shelf. Please try again.');
@@ -145,189 +160,280 @@ export default function BookDetailPage() {
     }
   };
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  // ── Write Review (from header button) ─────────────────────────────────────
+  const handleWriteReview = () => {
+    setOpenReviewForm(true);
+    setTimeout(() => reviewSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+  };
+
+  // ── Loading skeleton ───────────────────────────────────────────────────────
   if (isLoading) {
     return (
-      <main className="max-w-4xl mx-auto px-6 py-12">
-        {/* Skeleton loader — animated placeholders while the book data fetches */}
-        <div className="h-4 w-24 rounded bg-zinc-800 animate-pulse mb-8" />
-        <div className="flex flex-col sm:flex-row gap-8 mt-4">
-          {/* Cover placeholder */}
-          <div className="w-full sm:w-48 shrink-0">
-            <div className="aspect-[2/3] bg-zinc-800 rounded-xl animate-pulse" />
-          </div>
-          {/* Text placeholders */}
-          <div className="flex flex-col gap-4 flex-1">
-            <div className="h-8 w-3/4 rounded bg-zinc-800 animate-pulse" />
-            <div className="h-5 w-1/3 rounded bg-zinc-800 animate-pulse" />
-            <div className="h-4 w-full rounded bg-zinc-800 animate-pulse" />
-            <div className="h-4 w-5/6 rounded bg-zinc-800 animate-pulse" />
-            <div className="h-4 w-2/3 rounded bg-zinc-800 animate-pulse" />
+      <div className="min-h-screen bg-[#0c0602] px-6 py-8">
+        <div className="mx-auto max-w-[1200px] space-y-5">
+          <div className="h-4 w-24 animate-pulse rounded bg-zinc-800" />
+          <div className="flex gap-8 rounded-2xl border border-amber-900/20 bg-[#120804] p-7">
+            <div className="aspect-[2/3] w-44 shrink-0 animate-pulse rounded-xl bg-zinc-800" />
+            <div className="flex flex-1 flex-col gap-4 pt-2">
+              <div className="h-9 w-2/3 animate-pulse rounded bg-zinc-800" />
+              <div className="h-5 w-1/3 animate-pulse rounded bg-zinc-800" />
+              <div className="h-4 w-full animate-pulse rounded bg-zinc-800" />
+              <div className="h-4 w-5/6 animate-pulse rounded bg-zinc-800" />
+            </div>
           </div>
         </div>
-      </main>
+      </div>
     );
   }
 
   if (error || !book) {
     return (
-      <main className="max-w-4xl mx-auto px-6 py-12">
-        <p className="text-red-400">{error ?? 'Something went wrong.'}</p>
-        <button
-          onClick={() => router.back()}
-          className="mt-4 text-sm text-zinc-400 hover:text-white"
-        >
-          ← Go back
-        </button>
-      </main>
+      <div className="min-h-screen bg-[#0c0602] px-6 py-12">
+        <div className="mx-auto max-w-[1200px]">
+          <p className="text-red-400">{error ?? 'Something went wrong.'}</p>
+          <button onClick={() => router.back()} className="mt-4 text-sm text-zinc-400 hover:text-white">
+            ← Go back
+          </button>
+        </div>
+      </div>
     );
   }
 
+  // Header pills: maturity + first 5 category tags
+  const headerPills = [
+    book.maturity.replace(/_/g, ' '),
+    ...categories.slice(0, 5).map(c => c.category.name),
+    ...(book.isFanfiction ? ['Fanfiction'] : []),
+  ];
+
   return (
-    <main className="max-w-4xl mx-auto px-6 py-12">
+    <div className="min-h-screen bg-[#0c0602]">
+      <div className="mx-auto max-w-[1200px] px-6 py-8 space-y-5">
 
-      {/* Back link */}
-      <Link href="/books" className="text-sm text-zinc-500 hover:text-zinc-300 mb-8 inline-block">
-        ← Back to Browse
-      </Link>
+        {/* Back link */}
+        <Link href="/books" className="inline-block text-sm text-zinc-500 hover:text-zinc-300">
+          ← Back to Browse
+        </Link>
 
-      {/* ── Top section: cover + core info ── */}
-      <div className="flex flex-col sm:flex-row gap-8 mt-4">
+        {/* ── MAIN BOOK CARD ─────────────────────────────────────────────── */}
+        <div className="rounded-2xl border border-amber-900/20 bg-[#120804] p-7">
+          <div className="flex gap-8">
 
-        {/* Cover image */}
-        <div className="w-full sm:w-48 shrink-0">
-          <div className="aspect-[2/3] bg-zinc-900 rounded-xl overflow-hidden flex items-center justify-center">
-            {book.coverUrl ? (
-              <img
-                src={book.coverUrl}
-                alt={book.title}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <span className="text-zinc-600 text-sm">No cover</span>
-            )}
+            {/* Cover */}
+            <div className="w-44 shrink-0">
+              <div className="aspect-[2/3] overflow-hidden rounded-xl bg-zinc-900">
+                {book.coverUrl ? (
+                  <img src={book.coverUrl} alt={book.title} className="h-full w-full object-cover" />
+                ) : (
+                  <div className="flex h-full items-center justify-center text-sm text-zinc-600">No cover</div>
+                )}
+              </div>
+            </div>
+
+            {/* Title / author / pills / description / metadata */}
+            <div className="min-w-0 flex-1">
+              <h1 className="text-4xl font-bold leading-tight text-white">{book.title}</h1>
+              <p className="mt-1 text-xl text-[#d6a84f]">{book.author}</p>
+
+              {/* Category pill row */}
+              <div className="mt-4 flex flex-wrap gap-2">
+                {headerPills.map((label) => (
+                  <span
+                    key={label}
+                    className="rounded-full border border-zinc-700 px-3 py-1 text-sm text-zinc-300"
+                  >
+                    {label}
+                  </span>
+                ))}
+              </div>
+
+              {/* Description — clamped to 4 lines */}
+              {book.description && (
+                <p className="mt-4 line-clamp-4 leading-relaxed text-zinc-400">
+                  {book.description}
+                </p>
+              )}
+
+              {/* Metadata row */}
+              <div className="mt-4 flex items-center gap-3 text-sm text-zinc-500">
+                <span>Source: {formatSource(book.source)}</span>
+                {book.isbn13 && (
+                  <>
+                    <span className="text-zinc-700">•</span>
+                    <span>ISBN: {book.isbn13}</span>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Right panel: score + shelf actions */}
+            <div className="flex w-52 shrink-0 flex-col gap-3">
+
+              {/* Bookrithm Score */}
+              <div className="rounded-xl border border-amber-900/20 bg-[#0c0602] p-4 text-center">
+                <p className="mb-2 text-xs uppercase tracking-wider text-zinc-500">Bookrithm Score</p>
+                {avgScore != null ? (
+                  <>
+                    <p className="text-4xl font-bold text-[#d6a84f]">
+                      {avgScore.toFixed(1)}
+                      <span className="text-lg text-zinc-500">/10</span>
+                    </p>
+                    <p className="mt-1 text-xs text-zinc-600">
+                      Based on {reviewCount} {reviewCount === 1 ? 'review' : 'reviews'}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-3xl font-bold text-zinc-700">—</p>
+                )}
+              </div>
+
+              {user ? (
+                <>
+                  {/* Shelf selector + Add button */}
+                  <div className="flex gap-2">
+                    <select
+                      value={selectedShelfId}
+                      onChange={(e) => setSelectedShelfId(e.target.value)}
+                      disabled={shelves.length === 0}
+                      className="library-select min-w-0 flex-1 rounded-lg border border-amber-900/30 bg-[#0c0602] px-3 py-2 text-sm text-zinc-200 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {shelves.length === 0 ? (
+                        <option value="">No shelves</option>
+                      ) : (
+                        shelves.map((shelf) => (
+                          <option key={shelf.id} value={shelf.id}>{shelf.name}</option>
+                        ))
+                      )}
+                    </select>
+                    <button
+                      onClick={handleAddToShelf}
+                      disabled={isAdding || !selectedShelfId}
+                      className="shrink-0 rounded-lg bg-[#d6a84f] px-3 py-2 text-sm font-semibold text-[#0c0602] transition-opacity hover:opacity-90 disabled:opacity-50"
+                    >
+                      {isAdding ? '...' : 'Add'}
+                    </button>
+                  </div>
+                  {addSuccess && <p className="text-xs text-green-400">{addSuccess}</p>}
+                  {addError   && <p className="text-xs text-red-400">{addError}</p>}
+
+                  {/* Write a Review */}
+                  <button
+                    onClick={handleWriteReview}
+                    className="flex items-center justify-center gap-2 rounded-lg border border-zinc-700 bg-[#0c0602] px-4 py-2.5 text-sm text-zinc-300 transition-colors hover:bg-zinc-900"
+                  >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
+                    </svg>
+                    Write a Review
+                  </button>
+                </>
+              ) : (
+                <Link href="/" className="mt-2 text-center text-sm text-zinc-500 hover:text-zinc-300">
+                  Sign in to add to a shelf →
+                </Link>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Book info */}
-        <div className="flex flex-col gap-4 flex-1">
-          <div>
-            <h1 className="text-3xl font-bold text-white leading-tight">{book.title}</h1>
-            <p className="text-zinc-400 text-lg mt-1">{book.author}</p>
-          </div>
+        {/* ── TWO-COLUMN: Categories & Tags | Review Summary ─────────────── */}
+        <div className="grid grid-cols-[45fr_55fr] gap-5">
 
-          {/* Badges row */}
-          <div className="flex flex-wrap gap-2">
-            <span className="text-xs px-3 py-1 rounded-full bg-zinc-800 text-zinc-300">
-              {book.maturity}
-            </span>
-            {book.isFanfiction && (
-              <span className="text-xs px-3 py-1 rounded-full bg-purple-900 text-purple-300">
-                Fanfiction
-              </span>
-            )}
-            <span className="text-xs px-3 py-1 rounded-full bg-zinc-800 text-zinc-500">
-              {book.source}
-            </span>
-          </div>
+          {/* Categories & Tags */}
+          <div className="rounded-2xl border border-amber-900/20 bg-[#120804] p-6">
+            <h2 className="mb-4 flex items-center gap-2 text-base font-semibold text-[#d6a84f]">
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" />
+              </svg>
+              Categories &amp; Tags
+            </h2>
 
-          {/* Description */}
-          {book.description && (
-            <p className="text-zinc-400 leading-relaxed">{book.description}</p>
-          )}
-
-          {/* ── Add to Shelf section ── */}
-          <div className="mt-2 pt-4 border-t border-zinc-800">
-            {user ? (
-              // Logged-in: show shelf dropdown + button
-              <div className="flex flex-col gap-3">
-                <p className="text-sm font-medium text-zinc-300">Add to Shelf</p>
-
-                <div className="flex items-center gap-3 flex-wrap">
-                  {/* Shelf picker — <select> is like a Java Enum combo box */}
-                  <select
-                    value={selectedShelfId}
-                    onChange={(e) => setSelectedShelfId(e.target.value)}
-                    disabled={shelves.length === 0}
-                    className="library-select min-w-48 bg-zinc-900 border border-zinc-700 text-zinc-100 text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-zinc-500 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {shelves.length === 0 ? (
-                      <option value="">No shelves available</option>
-                    ) : (
-                      shelves.map((shelf) => (
-                        <option key={shelf.id} value={shelf.id}>
-                          {shelf.name}
-                        </option>
-                      ))
-                    )}
-                  </select>
-
-                  <button
-                    onClick={handleAddToShelf}
-                    disabled={isAdding || !selectedShelfId}
-                    className="px-4 py-2 rounded-lg bg-zinc-800 text-white text-sm font-medium hover:bg-zinc-700 disabled:opacity-50 transition-colors"
-                  >
-                    {isAdding ? 'Adding...' : 'Add to Shelf'}
-                  </button>
-                </div>
-
-                {/* Feedback messages */}
-                {addSuccess && <p className="text-green-400 text-sm">{addSuccess}</p>}
-                {addError   && <p className="text-red-400 text-sm">{addError}</p>}
+            {categoriesError ? (
+              <p className="text-sm text-zinc-600">Could not load tags.</p>
+            ) : categories.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {categories.map((item) => (
+                  <TagPill key={item.category.id} item={item} />
+                ))}
               </div>
             ) : (
-              // Not logged in: prompt to sign in
-              <Link href="/" className="text-sm text-zinc-500 hover:text-zinc-300">
-                Sign in to add this book to a shelf →
-              </Link>
+              <p className="text-sm text-zinc-600">No tags have been approved for this book yet.</p>
+            )}
+
+            {/* Suggest a Tag */}
+            {user && (
+              <div className="mt-4">
+                <button
+                  onClick={() => setShowSuggestionForm((prev) => !prev)}
+                  className="flex items-center gap-1.5 rounded-lg border border-zinc-700 px-3 py-1.5 text-sm text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200"
+                >
+                  <span>+</span> Suggest a Tag
+                </button>
+                {showSuggestionForm && (
+                  <div className="mt-4 rounded-xl border border-zinc-800 bg-[#0c0602] p-4">
+                    <SuggestionForm bookId={bookId} />
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Review Summary */}
+          <div className="flex gap-4 rounded-2xl border border-amber-900/20 bg-[#120804] p-6">
+            <div className="flex-1">
+              <h2 className="mb-4 flex items-center gap-2 text-base font-semibold text-[#d6a84f]">
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                Review Summary
+              </h2>
+
+              {reviewSummary ? (
+                <div className="flex flex-col gap-2.5">
+                  {SUMMARY_DIMS.map((dim) =>
+                    reviewSummary[dim.key] != null ? (
+                      <SummaryBar key={dim.key} label={dim.label} value={reviewSummary[dim.key]!} />
+                    ) : null
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-zinc-600">No reviews yet.</p>
+              )}
+            </div>
+
+            {/* Score side panel */}
+            {avgScore != null && (
+              <div className="flex w-32 shrink-0 flex-col items-center justify-center rounded-xl border border-amber-900/20 bg-[#0c0602] p-4 text-center">
+                <p className="text-3xl font-bold text-[#d6a84f]">
+                  {avgScore.toFixed(1)}
+                  <span className="text-base text-zinc-500">/10</span>
+                </p>
+                <p className="mt-1 text-xs font-medium text-zinc-400">Bookrithm Score</p>
+                <p className="mt-0.5 text-xs text-zinc-600">
+                  Based on {reviewCount} {reviewCount === 1 ? 'review' : 'reviews'}
+                </p>
+                <button
+                  onClick={() => reviewSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                  className="mt-3 text-xs text-[#d6a84f] hover:underline"
+                >
+                  View All Reviews
+                </button>
+              </div>
             )}
           </div>
         </div>
+
+        {/* ── REVIEWS ────────────────────────────────────────────────────── */}
+        <div ref={reviewSectionRef} className="rounded-2xl border border-amber-900/20 bg-[#120804] p-6">
+          <ReviewSection
+            bookId={bookId}
+            autoOpenForm={openReviewForm}
+            onFormOpened={() => setOpenReviewForm(false)}
+            onReviewsChange={setReviews}
+          />
+        </div>
+
       </div>
-
-      {/* ── Categories section ── */}
-      {categories.length > 0 && (
-        <section className="mt-12">
-          <h2 className="text-xl font-semibold text-white mb-4">Categories</h2>
-          <div className="flex flex-col gap-3 max-w-lg">
-            {categories.map((item) => (
-              <CategoryBar key={item.category.id} item={item} />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* ── Reviews section ── */}
-      <ReviewSection bookId={bookId} />
-
-      {/* ── Suggest a category / trope / content warning ── */}
-      {/* Only logged-in users can submit suggestions */}
-      {user && (
-        <section className="mt-12">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-semibold text-white">Suggest a Tag</h2>
-              <p className="mt-1 text-sm text-zinc-500">
-                Help improve how this book is categorised.
-              </p>
-            </div>
-            <button
-              onClick={() => setShowSuggestionForm((prev) => !prev)}
-              className="rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800 transition-colors"
-            >
-              {showSuggestionForm ? 'Cancel' : '+ Suggest'}
-            </button>
-          </div>
-
-          {showSuggestionForm && (
-            <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900 p-5">
-              {/* Pass the bookId so the suggestion is linked to this specific book */}
-              <SuggestionForm bookId={bookId} />
-            </div>
-          )}
-        </section>
-      )}
-
-    </main>
+    </div>
   );
 }

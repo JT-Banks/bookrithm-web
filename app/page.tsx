@@ -135,7 +135,7 @@ function CabinetContent({ userName }: { userName?: string }) {
           <div className="my-2">
             <Ornament />
           </div>
-          <p className="text-[clamp(11px,1.1vw,17px)] text-[#d5ad73] drop-shadow-[0_2px_4px_rgba(0,0,0,0.75)]">
+          <p className="-translate-y-2 text-[clamp(11px,1.1vw,17px)] text-[#d5ad73] drop-shadow-[0_2px_4px_rgba(0,0,0,0.75)]">
             {signedIn ? 'Your next great story is waiting.' : 'Track what you read. Discover what you will love.'}
           </p>
           {!signedIn && (

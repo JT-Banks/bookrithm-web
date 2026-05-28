@@ -3,13 +3,14 @@
 import { useState, useEffect, useRef } from 'react';
 import { suggestionsApi } from '@/lib/api/suggestions';
 import { categoriesApi } from '@/lib/api/categories';
-import type { SuggestionType, CategoryResponse } from '@/types/api';
+import { booksApi } from '@/lib/api/books';
+import type { SuggestionType, CategoryResponse, BookResponse } from '@/types/api';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Props
-// bookId is optional — when passed from a book detail page, the suggestion
-// is automatically linked to that book. Without it, the form submits a
-// general suggestion.
+// bookId is optional — when passed from a book detail page, the book is
+// pre-selected and the picker is hidden. Without it, the user must search
+// for and select a book before submitting.
 // ─────────────────────────────────────────────────────────────────────────────
 interface SuggestionFormProps {
   bookId?: string;
@@ -62,6 +63,14 @@ export function SuggestionForm({ bookId }: SuggestionFormProps) {
   const [successMsg,   setSuccessMsg]   = useState<string | null>(null);
   const [errorMsg,     setErrorMsg]     = useState<string | null>(null);
 
+  // ── Book picker state (only used when no bookId prop is supplied) ──────────
+  const [bookQuery,        setBookQuery]        = useState('');
+  const [bookResults,      setBookResults]      = useState<BookResponse[]>([]);
+  const [selectedBook,     setSelectedBook]     = useState<BookResponse | null>(null);
+  const [bookSearching,    setBookSearching]    = useState(false);
+  const [showBookDropdown, setShowBookDropdown] = useState(false);
+  const bookSearchRef = useRef<HTMLDivElement>(null);
+
   // ── Load the category taxonomy when the user switches to CATEGORY type ─────
   // We only fetch once — after that the list is already in allCategories.
   // Graceful degradation: if the fetch fails we just fall back to plain text.
@@ -86,6 +95,42 @@ export function SuggestionForm({ bookId }: SuggestionFormProps) {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // ── Close the book dropdown when the user clicks outside ──────────────────
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (bookSearchRef.current && !bookSearchRef.current.contains(e.target as Node)) {
+        setShowBookDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // ── Debounced book search ─────────────────────────────────────────────────
+  // Fires 300 ms after the user stops typing. Skipped when bookId is supplied
+  // as a prop (the book is already known from the book detail page).
+  useEffect(() => {
+    if (bookId) return;
+    const q = bookQuery.trim();
+    if (q.length < 2) {
+      setBookResults([]);
+      setShowBookDropdown(false);
+      return;
+    }
+    setBookSearching(true);
+    const timer = setTimeout(() => {
+      booksApi
+        .searchBooks({ q, size: 8 })
+        .then((page) => {
+          setBookResults(page.content);
+          setShowBookDropdown(true);
+        })
+        .catch(() => setBookResults([]))
+        .finally(() => setBookSearching(false));
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [bookQuery, bookId]);
 
   // ── Derived: matching categories for the current input ────────────────────
   // Filtered live as the user types. Like a Java Stream.filter() on the list.
@@ -115,6 +160,13 @@ export function SuggestionForm({ bookId }: SuggestionFormProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setShowDropdown(false);
+    setShowBookDropdown(false);
+
+    const resolvedBookId = bookId ?? selectedBook?.id ?? null;
+    if (!resolvedBookId) {
+      setErrorMsg('Please select a book to attach this suggestion to.');
+      return;
+    }
 
     const trimmedName = name.trim();
     if (!trimmedName) {
@@ -132,13 +184,15 @@ export function SuggestionForm({ bookId }: SuggestionFormProps) {
 
       await suggestionsApi.submitSuggestion({
         type,
-        bookId: bookId ?? null,
+        bookId: resolvedBookId,
         payload,
       });
 
       setSuccessMsg('Your suggestion is pending AI review. Thank you!');
       setName('');
       setDescription('');
+      setSelectedBook(null);
+      setBookQuery('');
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : 'Could not submit your suggestion. Please try again.';
@@ -149,21 +203,102 @@ export function SuggestionForm({ bookId }: SuggestionFormProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+
+      {/* ── Book picker ── */}
+      {/* Hidden when bookId is supplied as a prop (e.g. from a book detail page). */}
+      {!bookId && (
+        <div className="flex flex-col gap-2">
+          <label className="text-sm font-semibold uppercase tracking-[0.14em] text-[#d6a84f]/78">
+            Book <span className="text-[#f3d58a]">*</span>
+          </label>
+          {selectedBook ? (
+            <div className="flex items-center gap-3 rounded-[8px] border border-[#d6a84f]/50 bg-[rgba(104,61,5,0.36)] px-3 py-2.5">
+              {selectedBook.coverUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={selectedBook.coverUrl}
+                  alt=""
+                  className="h-12 w-8 flex-shrink-0 rounded-[3px] object-cover shadow-md"
+                />
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-[#fff4d8]">{selectedBook.title}</p>
+                <p className="truncate text-xs text-[#d6a84f]/72">{selectedBook.author}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setSelectedBook(null); setBookQuery(''); }}
+                className="ml-1 text-[#d6a84f]/60 transition-colors hover:text-[#f3d58a]"
+                aria-label="Clear selected book"
+              >
+                ✕
+              </button>
+            </div>
+          ) : (
+            <div ref={bookSearchRef} className="relative">
+              <input
+                type="text"
+                autoComplete="off"
+                value={bookQuery}
+                onChange={(e) => setBookQuery(e.target.value)}
+                onFocus={() => { if (bookResults.length > 0) setShowBookDropdown(true); }}
+                onKeyDown={(e) => { if (e.key === 'Escape') setShowBookDropdown(false); }}
+                placeholder="Search by title or author…"
+                className="w-full rounded-[8px] border border-[#9b6b2f]/55 bg-[rgba(8,4,2,0.82)] px-3 py-2.5 text-sm text-[#fff4d8] placeholder:text-[#9b6b2f]/70 focus:border-[#f3d58a]/75 focus:outline-none"
+              />
+              {bookSearching && (
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[#d6a84f]/60">Searching…</span>
+              )}
+              {showBookDropdown && bookResults.length > 0 && (
+                <ul className="absolute z-10 mt-1 w-full rounded-[8px] border border-[#9b6b2f]/65 bg-[#0c0602] py-1 shadow-[0_20px_60px_rgba(0,0,0,0.65)]">
+                  {bookResults.map((book) => (
+                    <li key={book.id}>
+                      <button
+                        type="button"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          setSelectedBook(book);
+                          setBookQuery('');
+                          setShowBookDropdown(false);
+                        }}
+                        className="flex w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-[rgba(104,61,5,0.52)]"
+                      >
+                        {book.coverUrl
+                          ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={book.coverUrl} alt="" className="h-10 w-7 flex-shrink-0 rounded-[3px] object-cover" />
+                          ) : (
+                            <div className="h-10 w-7 flex-shrink-0 rounded-[3px] bg-[#1a0d05]" />
+                          )
+                        }
+                        <div className="min-w-0">
+                          <p className="truncate text-sm text-[#fff4d8]">{book.title}</p>
+                          <p className="truncate text-xs text-[#d6a84f]/70">{book.author}</p>
+                        </div>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Type selector ── */}
       <div className="flex flex-col gap-2">
-        <label className="text-sm font-medium text-zinc-300">Suggestion type</label>
+        <label className="text-sm font-semibold uppercase tracking-[0.14em] text-[#d6a84f]/78">Suggestion type</label>
         <div className="flex flex-col gap-2 sm:flex-row">
           {SUGGESTION_TYPES.map((option) => (
             <button
               key={option.value}
               type="button"
               onClick={() => handleTypeChange(option.value)}
-              className={`flex-1 rounded-lg border px-4 py-3 text-left text-sm transition-colors
+              className={`flex-1 rounded-[8px] border px-4 py-3 text-left text-sm transition-all duration-200
                 ${type === option.value
-                  ? 'border-zinc-400 bg-zinc-800 text-zinc-100'
-                  : 'border-zinc-700 bg-zinc-900 text-zinc-400 hover:border-zinc-600 hover:text-zinc-300'
+                  ? 'border-[#f3d58a]/70 bg-[rgba(104,61,5,0.68)] text-[#fff4d8] shadow-[0_0_22px_rgba(214,168,79,0.18)]'
+                  : 'border-[#9b6b2f]/50 bg-[rgba(12,6,2,0.72)] text-[#d6a84f]/68 hover:border-[#d6a84f]/65 hover:bg-[rgba(18,8,4,0.86)] hover:text-[#f3d58a]'
                 }`}
             >
               <span className="block font-medium">{option.label}</span>
@@ -177,8 +312,8 @@ export function SuggestionForm({ bookId }: SuggestionFormProps) {
       {/* For CATEGORY: combo-box with autocomplete against existing taxonomy */}
       {/* For TROPE / CONTENT_WARNING: plain text input */}
       <div className="flex flex-col gap-1.5">
-        <label htmlFor="suggestion-name" className="text-sm font-medium text-zinc-300">
-          Name <span className="text-red-400">*</span>
+        <label htmlFor="suggestion-name" className="text-sm font-semibold uppercase tracking-[0.14em] text-[#d6a84f]/78">
+          Name <span className="text-[#f3d58a]">*</span>
         </label>
 
         {type === 'CATEGORY' ? (
@@ -198,12 +333,12 @@ export function SuggestionForm({ bookId }: SuggestionFormProps) {
               onKeyDown={(e) => { if (e.key === 'Escape') setShowDropdown(false); }}
               placeholder='e.g. "Dark Fantasy", "Cosy Mystery"'
               maxLength={100}
-              className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-600 focus:border-zinc-500 focus:outline-none"
+              className="w-full rounded-[8px] border border-[#9b6b2f]/55 bg-[rgba(8,4,2,0.82)] px-3 py-2.5 text-sm text-[#fff4d8] placeholder:text-[#9b6b2f]/70 focus:border-[#f3d58a]/75 focus:outline-none"
             />
 
             {/* Dropdown — only shown when there are matches */}
             {showDropdown && filteredCategories.length > 0 && (
-              <ul className="absolute z-10 mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-900 py-1 shadow-xl">
+              <ul className="absolute z-10 mt-1 w-full rounded-[8px] border border-[#9b6b2f]/65 bg-[#0c0602] py-1 shadow-[0_20px_60px_rgba(0,0,0,0.65)]">
                 {filteredCategories.map((cat) => (
                   <li key={cat.id}>
                     <button
@@ -215,7 +350,7 @@ export function SuggestionForm({ bookId }: SuggestionFormProps) {
                         setName(cat.name);
                         setShowDropdown(false);
                       }}
-                      className="w-full px-3 py-2 text-left text-sm text-zinc-200 hover:bg-zinc-800 transition-colors"
+                      className="w-full px-3 py-2 text-left text-sm text-[#d6a84f]/82 transition-colors hover:bg-[rgba(104,61,5,0.52)] hover:text-[#f3d58a]"
                     >
                       {cat.name}
                     </button>
@@ -233,7 +368,7 @@ export function SuggestionForm({ bookId }: SuggestionFormProps) {
             onChange={(e) => setName(e.target.value)}
             placeholder={type === 'TROPE' ? 'e.g. "Enemies to Lovers"' : 'e.g. "Graphic Violence"'}
             maxLength={100}
-            className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-600 focus:border-zinc-500 focus:outline-none"
+            className="rounded-[8px] border border-[#9b6b2f]/55 bg-[rgba(8,4,2,0.82)] px-3 py-2.5 text-sm text-[#fff4d8] placeholder:text-[#9b6b2f]/70 focus:border-[#f3d58a]/75 focus:outline-none"
           />
         )}
 
@@ -242,11 +377,11 @@ export function SuggestionForm({ bookId }: SuggestionFormProps) {
         {/* whether their input matches something already in the taxonomy.  */}
         {type === 'CATEGORY' && name.trim() && (
           exactMatch ? (
-            <p className="text-xs text-green-400">
+            <p className="text-xs text-emerald-300">
               ✓ Existing category — you&apos;re suggesting this book be tagged with it
             </p>
           ) : (
-            <p className="text-xs text-zinc-500">
+            <p className="text-xs text-[#d6a84f]/60">
               + New category — you&apos;re proposing this be added to the taxonomy
             </p>
           )
@@ -255,8 +390,8 @@ export function SuggestionForm({ bookId }: SuggestionFormProps) {
 
       {/* ── Description field (optional) ── */}
       <div className="flex flex-col gap-1.5">
-        <label htmlFor="suggestion-desc" className="text-sm font-medium text-zinc-300">
-          Description <span className="text-zinc-500 text-xs font-normal">(optional)</span>
+        <label htmlFor="suggestion-desc" className="text-sm font-semibold uppercase tracking-[0.14em] text-[#d6a84f]/78">
+          Description <span className="text-[#9b6b2f] text-xs font-normal normal-case tracking-normal">(optional)</span>
         </label>
         <textarea
           id="suggestion-desc"
@@ -265,18 +400,18 @@ export function SuggestionForm({ bookId }: SuggestionFormProps) {
           placeholder="Briefly explain what this means or why it applies to this book..."
           rows={3}
           maxLength={500}
-          className="resize-none rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-600 focus:border-zinc-500 focus:outline-none"
+          className="resize-none rounded-[8px] border border-[#9b6b2f]/55 bg-[rgba(8,4,2,0.82)] px-3 py-2.5 text-sm text-[#fff4d8] placeholder:text-[#9b6b2f]/70 focus:border-[#f3d58a]/75 focus:outline-none"
         />
       </div>
 
       {/* ── Feedback messages ── */}
       {successMsg && (
-        <p className="rounded-lg bg-green-900/40 px-4 py-3 text-sm text-green-300">
+        <p className="rounded-[8px] border border-emerald-400/25 bg-emerald-950/55 px-4 py-3 text-sm text-emerald-200">
           {successMsg}
         </p>
       )}
       {errorMsg && (
-        <p className="rounded-lg bg-red-900/40 px-4 py-3 text-sm text-red-300">
+        <p className="rounded-[8px] border border-red-400/25 bg-red-950/55 px-4 py-3 text-sm text-red-200">
           {errorMsg}
         </p>
       )}
@@ -285,12 +420,12 @@ export function SuggestionForm({ bookId }: SuggestionFormProps) {
       <div className="flex items-center gap-4">
         <button
           type="submit"
-          disabled={isSubmitting}
-          className="rounded-lg bg-zinc-800 text-white px-5 py-2 text-sm font-medium transition-colors hover:bg-zinc-700 disabled:opacity-50"
+          disabled={isSubmitting || (!bookId && !selectedBook)}
+          className="rounded-full border border-[#d6a84f]/65 bg-[rgba(104,61,5,0.72)] px-5 py-2.5 text-sm font-bold text-[#fff4d8] transition-colors hover:border-[#f3d58a]/80 hover:bg-[rgba(130,77,8,0.76)] disabled:opacity-50"
         >
           {isSubmitting ? 'Submitting...' : 'Submit Suggestion'}
         </button>
-        <p className="text-xs text-zinc-500">
+        <p className="text-xs text-[#d6a84f]/56">
           Suggestions are reviewed by AI and then our moderators.
         </p>
       </div>
