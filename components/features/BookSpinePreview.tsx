@@ -1,9 +1,10 @@
+/* eslint-disable @next/next/no-img-element */
 import type { BookArrangement } from '@/types/shelves';
 
 /**
  * BookSpinePreview
  *
- * Renders a row of decorative book spines sitting on a shelf.
+ * Renders a row of decorative book spines sitting on a shelf using actual book images.
  * No real book data is needed — spines are generated deterministically
  * from the shelf's ID so they stay consistent across renders.
  *
@@ -13,25 +14,23 @@ import type { BookArrangement } from '@/types/shelves';
  *  - 0 books    → gentle "empty shelf" label
  */
 
-// ── Palettes ──────────────────────────────────────────────────────────────────
+// ── Book Images ───────────────────────────────────────────────────────────────
 
-/** Warm, old-library spine gradients with matching gold/jewel-tone borders. */
-const SPINE_PALETTES = [
-  { bg: 'linear-gradient(90deg, #2a0c06 0%, #7a2818 17%, #5d1c10 48%, #2b0b06 100%)', border: 'rgba(184, 91, 48, 0.72)', band: '#c69a45', label: '#4b160e' },
-  { bg: 'linear-gradient(90deg, #09101d 0%, #233f61 18%, #172f4d 52%, #07101f 100%)', border: 'rgba(97, 135, 176, 0.64)', band: '#b6a060', label: '#10213b' },
-  { bg: 'linear-gradient(90deg, #071007 0%, #243f1d 18%, #183314 52%, #050b04 100%)', border: 'rgba(99, 138, 69, 0.68)', band: '#b99a4b', label: '#10230f' },
-  { bg: 'linear-gradient(90deg, #150a03 0%, #5b3713 18%, #3a2109 52%, #0b0502 100%)', border: 'rgba(178, 126, 55, 0.70)', band: '#d0a151', label: '#2b1706' },
-  { bg: 'linear-gradient(90deg, #160817 0%, #4b214f 18%, #321339 52%, #0b030c 100%)', border: 'rgba(139, 86, 153, 0.66)', band: '#c3a15a', label: '#29112e' },
-  { bg: 'linear-gradient(90deg, #06110e 0%, #1f4a39 18%, #153225 52%, #030908 100%)', border: 'rgba(76, 138, 111, 0.66)', band: '#bda968', label: '#0e251c' },
-  { bg: 'linear-gradient(90deg, #171205 0%, #5c4a10 18%, #3b2d08 52%, #0c0902 100%)', border: 'rgba(189, 147, 48, 0.70)', band: '#e2c46f', label: '#332606' },
-  { bg: 'linear-gradient(90deg, #120603 0%, #512113 18%, #321108 52%, #080302 100%)', border: 'rgba(166, 86, 51, 0.68)', band: '#c98a55', label: '#2a1008' },
+/** Available book spine images (book_2.png through book_6.png) */
+const BOOK_IMAGES = [
+  '/images/books/book1.png',
+  '/images/books/book2.png',
+  '/images/books/book3.png',
+  '/images/books/book4.png',
+  '/images/books/book5.png',
+  '/images/books/book6.png',
 ] as const;
 
 /**
  * Height sequence (px). Cycling through these gives each spine a slightly
  * different height — like real books of varying sizes on a shelf.
  */
-const SPINE_HEIGHTS = [92, 104, 88, 112, 96, 101, 108, 90] as const;
+const SPINE_HEIGHTS = [108, 120, 104, 124, 112, 118, 122, 106] as const;
 
 const MAX_VISIBLE = 8;
 
@@ -49,114 +48,97 @@ function hashId(id: string): number {
 // ── Arrangement ─────────────────────────────────────────────────────────────────
 
 interface SpineConfig {
-  rotation:  number;  // degrees; rotates around bottom-center
-  gapBefore: number;  // extra left margin (px) before this spine
+  rotation:   number;  // degrees; rotates around bottom-center
+  gapBefore:  number;  // extra left margin (px) before this spine
+  horizontal: boolean; // book is lying on its side
 }
+
+// Source image aspect ratio: 724 wide × 2172 tall
+const BOOK_WIDTH_RATIO = 724 / 2172; // ≈ 0.333
 
 function getSpineConfig(
   arrangement: BookArrangement,
   base: number,
   index: number,
+  height: number,
 ): SpineConfig {
-  // Three independent pseudo-random streams derived from shelf hash + position
   const h1 = (base + index * 13) % 7;   // 0–6
-  const h3 = (base + index * 17) % 11;  // 0–10
+  const h2 = (base + index * 17) % 11;  // 0–10
+  const h3 = (base + index * 23) % 5;   // 0–4
+
+  const bookWidth = Math.round(height * BOOK_WIDTH_RATIO);
+
+  /**
+   * Minimum gap so two books leaning TOWARD each other don't overlap.
+   * Derivation: when book i leans +θ and book i+1 leans -θ (toward each other),
+   * the required spacing is: w*cos(θ) + 2*h*sin(θ)
+   * Since default spacing = w, the extra gap = 2*h*sin(θ) + w*(cos(θ)-1)
+   */
+  function safeGap(deg: number): number {
+    const rad = Math.abs(deg) * Math.PI / 180;
+    return Math.max(0, Math.ceil(2 * height * Math.sin(rad) + bookWidth * (Math.cos(rad) - 1)));
+  }
 
   switch (arrangement) {
     case 'neat':
-      return { rotation: 0, gapBefore: 0 };
+      return { rotation: 0, gapBefore: 0, horizontal: false };
 
     case 'messy': {
-      const rotation = (h1 - 3) * 0.55; // slight variation without breaking the shelf baseline
-      return { rotation, gapBefore: 0 };
+      // ~1 in 5 books lies flat on the shelf
+      const isHorizontal = (base + index * 31) % 5 === 0;
+      if (isHorizontal) {
+        return { rotation: 0, gapBefore: bookWidth, horizontal: true };
+      }
+      const rotation = (h1 - 3) * 5;  // ±15°
+      const extraGap  = h3 * 6;        // 0–24px random breathing room
+      return { rotation, gapBefore: safeGap(rotation) + extraGap, horizontal: false };
     }
 
     case 'leaning': {
-      // Books lean in pairs; direction alternates per pair-group
-      const groupIdx = Math.floor(index / 2);
-      const groupDir = ((base + groupIdx * 19) % 3) - 1;  // −1, 0, or +1
-      const leanAmt  = (h1 + 2) * 0.9 * groupDir;         // up to ±7°
-      return { rotation: leanAmt, gapBefore: 0 };
+      // All lean the same direction — same-direction lean never overlaps (proven:
+      // required spacing = w*cos(θ) < w = natural spacing, so gap = 0).
+      const leanAmt = 7 + (h1 % 4); // 7–10°
+      return { rotation: leanAmt, gapBefore: 0, horizontal: false };
     }
 
-    case 'stacked': {
-      // Keep the display as an upright run so every book rests on the shelf.
-      return { rotation: (h3 % 3) - 1, gapBefore: 0 };
-    }
+    case 'stacked':
+      return { rotation: (h2 % 3) - 1, gapBefore: 0, horizontal: false };
 
     case 'mixed': {
-      const rotation = (h1 - 3) * 0.45;
-      return { rotation, gapBefore: 0 };
+      // Alternating lean — use full safeGap to prevent overlap
+      const dir      = index % 2 === 0 ? 1 : -1;
+      const rotation = ((h1 % 3) + 3) * dir; // ±3° to ±5°
+      return { rotation, gapBefore: index === 0 ? 0 : safeGap(rotation), horizontal: false };
     }
   }
 }
 
 function AntiqueBookend({ side }: { side: 'left' | 'right' }) {
-  const scaleX = side === 'left' ? -1 : 1;
+  const imagePath = side === 'left' 
+    ? '/images/shelves/right_bookend_transparent.png' 
+    : '/images/shelves/left_bookend_transparent.png';
+  
   return (
     <div
       aria-hidden="true"
       style={{
-        position:     'relative',
-        alignSelf:    'flex-end',
-        flexShrink:   0,
-        width:        '25px',
-        height:       '62px',
-        marginRight:  side === 'left' ? '1px' : undefined,
-        marginLeft:   side === 'right' ? '1px' : undefined,
-        transform:    `scaleX(${scaleX}) translateY(1px)`,
-        filter:       'drop-shadow(3px 4px 5px rgba(0,0,0,0.50))',
+        alignSelf: 'flex-end',
+        flexShrink: 0,
+        // Negative margin pulls books flush against the inner face of the post,
+        // compensating for the post's own width (~20% of the image canvas)
+        marginRight: side === 'left' ? '-2px' : undefined,
+        marginLeft: side === 'right' ? '-2px' : undefined,
+        filter: 'drop-shadow(3px 4px 6px rgba(0,0,0,0.55))',
       }}
     >
-      <div
+      {/* Source: 1254×1254 square — height matches tallest book */}
+      <img
+        src={imagePath}
+        alt=""
         style={{
-          position:     'absolute',
-          left:         0,
-          bottom:       0,
-          width:        '24px',
-          height:       '8px',
-          borderRadius: '2px',
-          background:   'linear-gradient(180deg, #c29a4d 0%, #62400f 55%, #241303 100%)',
-          border:       '1px solid rgba(224, 175, 77, 0.68)',
-          boxShadow:    'inset 0 1px 0 rgba(255,234,160,0.24)',
-        }}
-      />
-      <div
-        style={{
-          position:     'absolute',
-          left:         '3px',
-          bottom:       '4px',
-          width:        '8px',
-          height:       '54px',
-          borderRadius: '5px 5px 2px 2px',
-          background:   'linear-gradient(90deg, #1a0e04 0%, #8b641e 44%, #d5a84e 58%, #3b2408 100%)',
-          border:       '1px solid rgba(221, 168, 73, 0.62)',
-          boxShadow:    'inset -2px 0 3px rgba(0,0,0,0.38), inset 1px 0 1px rgba(255,236,170,0.20)',
-        }}
-      />
-      <div
-        style={{
-          position:     'absolute',
-          left:         '8px',
-          bottom:       '18px',
-          width:        '13px',
-          height:       '13px',
-          borderLeft:   '2px solid rgba(220, 172, 79, 0.72)',
-          borderBottom: '2px solid rgba(220, 172, 79, 0.72)',
-          borderRadius: '0 0 0 10px',
-          transform:    'rotate(-8deg)',
-        }}
-      />
-      <div
-        style={{
-          position:     'absolute',
-          left:         '10px',
-          bottom:       '33px',
-          width:        '9px',
-          height:       '9px',
-          border:       '1px solid rgba(236, 189, 95, 0.66)',
-          borderRadius: '999px',
-          background:   'radial-gradient(circle, rgba(255,225,144,0.36), rgba(84,48,10,0.30) 62%, transparent 64%)',
+          height: '124px',
+          width: 'auto',
+          display: 'block',
         }}
       />
     </div>
@@ -200,105 +182,83 @@ export default function BookSpinePreview({ bookCount, shelfId, arrangement = 'ne
   // ── Book spines ─────────────────────────────────────────────────────────────
   return (
     <div
-      className="inline-flex items-end justify-start gap-1 pt-4"
-      style={{ minHeight: '132px', lineHeight: 0 }}
+      className="inline-flex items-end justify-start"
+      style={{ minHeight: '180px', lineHeight: 0 }}
       aria-label={`${bookCount} book${bookCount === 1 ? '' : 's'} on shelf`}
     >
       <AntiqueBookend side="left" />
       <div
-        className="flex items-end justify-center gap-1"
+        className="flex items-end justify-center"
         style={{
-          minWidth: visible === 1 ? '30px' : undefined,
+          minWidth: visible === 1 ? '40px' : undefined,
+          position: 'relative',
+          zIndex: 1,
         }}
       >
         {Array.from({ length: visible }).map((_, i) => {
-          const config  = getSpineConfig(arrangement, base, i);
-          const palette = SPINE_PALETTES[(base + i * 3) % SPINE_PALETTES.length];
-          const height  = SPINE_HEIGHTS[ (base + i * 7) % SPINE_HEIGHTS.length ];
+          const bookImageIndex = (base + i * 3) % BOOK_IMAGES.length;
+          const bookImage = BOOK_IMAGES[bookImageIndex];
+          const height = SPINE_HEIGHTS[(base + i * 7) % SPINE_HEIGHTS.length];
+          const config = getSpineConfig(arrangement, base, i, height);
+          const bookWidth = Math.round(height * BOOK_WIDTH_RATIO);
+
+          if (config.horizontal) {
+            // Render lying on its side: container is height×bookWidth,
+            // image is centered and rotated 90° to fill it exactly.
+            return (
+              <div
+                key={i}
+                aria-hidden="true"
+                style={{
+                  width: `${height}px`,
+                  height: `${bookWidth}px`,
+                  alignSelf: 'flex-end',
+                  flexShrink: 0,
+                  marginLeft: `${config.gapBefore}px`,
+                  position: 'relative',
+                  filter: 'drop-shadow(2px 4px 8px rgba(0, 0, 0, 0.62))',
+                }}
+              >
+                <img
+                  src={bookImage}
+                  alt=""
+                  style={{
+                    position: 'absolute',
+                    width: `${bookWidth}px`,
+                    height: `${height}px`,
+                    // Center the image inside the container before rotating
+                    left: `${(height - bookWidth) / 2}px`,
+                    top: `${(bookWidth - height) / 2}px`,
+                    transformOrigin: 'center',
+                    transform: 'rotate(90deg)',
+                    display: 'block',
+                  }}
+                />
+              </div>
+            );
+          }
 
           return (
             <div
               key={i}
               aria-hidden="true"
               style={{
-                position:        'relative',
-                width:           '30px',
-                height:          `${height}px`,
-                background:      palette.bg,
-                backgroundImage:  [
-                  'radial-gradient(circle at 35% 24%, rgba(255,218,145,0.12), transparent 18%)',
-                  'radial-gradient(circle at 68% 72%, rgba(255,218,145,0.07), transparent 15%)',
-                  'repeating-linear-gradient(0deg, transparent 0 14px, rgba(255,255,255,0.035) 14px 15px)',
-                  'linear-gradient(90deg, rgba(255,230,168,0.10), transparent 16%, transparent 72%, rgba(0,0,0,0.38))',
-                  palette.bg,
-                ].join(', '),
-                border:          `1px solid ${palette.border}`,
-                borderRadius:    '4px 5px 2px 2px',
-                flexShrink:      0,
-                marginLeft:      config.gapBefore > 0 ? `${config.gapBefore}px` : undefined,
-                transform:       `rotate(${config.rotation}deg)`,
+                alignSelf: 'flex-end',
+                flexShrink: 0,
+                marginLeft: config.gapBefore > 0 ? `${config.gapBefore}px` : undefined,
+                transform: `rotate(${config.rotation}deg)`,
                 transformOrigin: 'bottom center',
-                overflow:        'hidden',
-                boxShadow: [
-                  'inset 3px 0 4px rgba(255,232,170,0.10)',
-                  'inset -7px 0 7px rgba(0,0,0,0.42)',
-                  'inset 0 0 12px rgba(0,0,0,0.20)',
-                  '3px 3px 7px rgba(0, 0, 0, 0.54)',
-                ].join(', '),
+                filter: 'drop-shadow(2px 4px 8px rgba(0, 0, 0, 0.62))',
               }}
             >
-              <div
+              {/* Source: 724×2172 — height drives display size, width scales naturally (~1:3 ratio) */}
+              <img
+                src={bookImage}
+                alt=""
                 style={{
-                  position:   'absolute',
-                  inset:      0,
-                  background: [
-                    'repeating-linear-gradient(90deg, rgba(255,255,255,0.035) 0 1px, transparent 1px 8px)',
-                    'repeating-linear-gradient(0deg, transparent 0 20px, rgba(0,0,0,0.11) 20px 21px)',
-                  ].join(', '),
-                  opacity:    0.62,
-                  mixBlendMode: 'screen',
-                }}
-              />
-              {[12, 30, height - 22].map((top, bandIndex) => (
-                <div
-                  key={bandIndex}
-                  style={{
-                    position:     'absolute',
-                    top:          `${top}px`,
-                    left:         '4px',
-                    right:        '5px',
-                    height:       bandIndex === 1 ? '3px' : '5px',
-                    borderRadius: '999px',
-                    background:   `linear-gradient(90deg, transparent, ${palette.band}, transparent)`,
-                    opacity:      bandIndex === 1 ? 0.46 : 0.76,
-                    boxShadow:    '0 1px 2px rgba(0,0,0,0.42)',
-                  }}
-                />
-              ))}
-              <div
-                style={{
-                  position:     'absolute',
-                  top:          `${Math.max(38, height * 0.42)}px`,
-                  left:         '7px',
-                  right:        '8px',
-                  height:       '22px',
-                  borderRadius: '3px',
-                  background:   `linear-gradient(180deg, rgba(255,230,170,0.10), transparent), ${palette.label}`,
-                  border:       `1px solid ${palette.band}66`,
-                  boxShadow:    'inset 0 0 4px rgba(0,0,0,0.42)',
-                }}
-              />
-              <div
-                style={{
-                  position:   'absolute',
-                  top:        `${Math.max(64, height * 0.68)}px`,
-                  left:       '50%',
-                  width:      '8px',
-                  height:     '8px',
-                  transform:  'translateX(-50%) rotate(45deg)',
-                  border:     `1px solid ${palette.band}99`,
-                  background: 'rgba(255,216,132,0.08)',
-                  boxShadow:  `0 0 7px ${palette.band}40`,
+                  height: `${height}px`,
+                  width: 'auto',
+                  display: 'block',
                 }}
               />
             </div>

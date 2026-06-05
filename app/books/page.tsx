@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { booksApi } from '@/lib/api/books';
 import { categoriesApi } from '@/lib/api/categories';
+import { logger } from '@/lib/utils/logger';
 import type { BookResponse, BookPage, CategoryResponse, BookSortBy } from '@/types/api';
 
 const SORT_OPTIONS: Array<{ value: BookSortBy; label: string; helper: string }> = [
@@ -196,7 +197,7 @@ export default function BooksPage() {
       setPage(result);
     } catch (err) {
       setError('Failed to load books. Please try again.');
-      console.error(err);
+      logger.error('Failed to load books', err);
     } finally {
       setIsLoading(false);
     }

@@ -13,7 +13,7 @@ type Slot = {
 };
 
 const SLOTS = {
-  plaque: { left: '27.5%', top: '5.3%', width: '45%', height: '22%' },
+  plaque: { left: '27.5%', top: '4.5%', width: '45%', height: '22%' },
   shelves: { left: '16.8%', top: '42.8%', width: '18.5%', height: '17.3%' },
   browse: { left: '40.8%', top: '42.8%', width: '18.5%', height: '17.3%' },
   history: { left: '64.3%', top: '42.8%', width: '18.5%', height: '17.3%' },
@@ -126,7 +126,7 @@ function CabinetContent({ userName }: { userName?: string }) {
             height: SLOTS.plaque.height,
           }}
         >
-          <p className="library-kicker mb-2 text-[clamp(9px,0.9vw,13px)] font-semibold tracking-[0.18em] text-[#c69a5d]">
+          <p className="library-kicker mb-2 text-[clamp(8px,0.9vw,13px)] font-semibold tracking-[0.18em] text-[#c69a5d]">
             Private Library
           </p>
           <h1 className="font-serif text-[clamp(24px,3.3vw,52px)] font-bold leading-tight text-[#f7e6c4] drop-shadow-[0_4px_7px_rgba(0,0,0,0.80)]">

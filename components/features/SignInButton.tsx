@@ -4,6 +4,7 @@ import { GoogleLogin, type CredentialResponse } from '@react-oauth/google';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { ApiError } from '@/lib/api/client';
+import { logger } from '@/lib/utils/logger';
 
 // This component renders the Google Sign-In button.
 // It's a client component because it handles user interaction (button clicks).
@@ -30,7 +31,7 @@ export function SignInButton() {
         router.push('/register');
       } else {
         // Something unexpected went wrong
-        console.error('Sign in failed:', error);
+        logger.error('Sign in failed', error);
       }
     }
   };
@@ -63,7 +64,7 @@ export function SignInButton() {
           width="240"
           size="large"
           onSuccess={handleSuccess}
-          onError={() => console.error('Google sign-in failed')}
+          onError={() => logger.error('Google sign-in failed')}
         />
       </div>
     </div>

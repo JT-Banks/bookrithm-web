@@ -13,6 +13,7 @@
  */
 
 import type { ErrorResponse } from '@/types/api';
+import { logger } from '@/lib/utils/logger';
 
 /**
  * Custom error class for API errors
@@ -52,7 +53,7 @@ class ApiClient {
     this.baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || '';
     
     if (!this.baseUrl) {
-      console.warn('NEXT_PUBLIC_API_BASE_URL is not set in environment variables');
+      logger.warn('NEXT_PUBLIC_API_BASE_URL is not set in environment variables');
     }
   }
 
@@ -167,7 +168,7 @@ class ApiClient {
       }
 
       // Network error or other issue
-      console.error('API request failed:', error);
+      logger.apiError(endpoint, error);
       throw new Error('Failed to connect to the API. Please check your connection.');
     }
   }
