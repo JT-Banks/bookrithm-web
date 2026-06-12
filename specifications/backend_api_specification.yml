@@ -643,6 +643,28 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /admin/categories/{id}:
+    delete:
+      tags: [admin]
+      summary: Delete an approved category
+      operationId: adminDeleteCategory
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/IdPathParam'
+      responses:
+        '204':
+          description: Category deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+      security:
+        - bearerAuth: []
+
   /admin/suggestions:
     get:
       tags: [admin]
@@ -924,7 +946,7 @@ components:
 
     BookResponse:
       type: object
-      required: [id, source, title, author, isFanfiction, maturity]
+      required: [id, source, title, author, isFanfiction, maturity, categories]
       properties:
         id:
           type: string
@@ -951,6 +973,11 @@ components:
         isbn13:
           type: string
           nullable: true
+        categories:
+          type: array
+          description: Categories associated with this book, ordered by weight descending.
+          items:
+            $ref: '#/components/schemas/CategoryResponse'
 
     BookPage:
       type: object

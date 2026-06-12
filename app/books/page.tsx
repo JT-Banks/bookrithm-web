@@ -76,7 +76,7 @@ function CategoryButton({
   );
 }
 
-function BookCard({ book }: { book: BookResponse }) {
+function BookCard({ book, onCategoryClick }: { book: BookResponse; onCategoryClick: (categoryId: string) => void }) {
   const hasCover = Boolean(book.coverUrl);
 
   return (
@@ -112,15 +112,31 @@ function BookCard({ book }: { book: BookResponse }) {
           <p className="mt-1 text-sm text-amber-200/62 line-clamp-1">{book.author}</p>
         </div>
 
-        <div className="mt-auto flex flex-wrap gap-2">
-          <span className="rounded-full border border-amber-900/50 bg-[rgba(0,0,0,0.72)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-amber-200/70">
-            {book.maturity}
-          </span>
-          {book.isFanfiction && (
-            <span className="rounded-full border border-purple-400/35 bg-purple-950/35 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-purple-100/80">
-              Fanfiction
+        <div className="mt-auto flex flex-col gap-2">
+          <div className="flex flex-wrap gap-1.5">
+            {book.categories.map((cat) => (
+              <button
+                key={cat.id}
+                onClick={(e) => {
+                  e.preventDefault();
+                  onCategoryClick(cat.id);
+                }}
+                className="rounded-full border border-amber-700/40 bg-amber-950/50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-amber-300/80 transition-colors hover:border-amber-400/70 hover:text-amber-100"
+              >
+                {cat.name}
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <span className="rounded-full border border-amber-900/50 bg-[rgba(0,0,0,0.72)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-amber-200/70">
+              {book.maturity}
             </span>
-          )}
+            {book.isFanfiction && (
+              <span className="rounded-full border border-purple-400/35 bg-purple-950/35 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-purple-100/80">
+                Fanfiction
+              </span>
+            )}
+          </div>
         </div>
       </div>
     </Link>
@@ -172,6 +188,19 @@ export default function BooksPage() {
       .catch(() => {});
   }, []);
 
+  // Merge any categories embedded in book responses that aren't already in the list
+  const mergeBookCategories = useCallback((books: BookResponse[]) => {
+    setAllCategories((prev) => {
+      const seen = new Map(prev.map((c) => [c.id, c]));
+      for (const book of books) {
+        for (const cat of book.categories) {
+          if (!seen.has(cat.id)) seen.set(cat.id, cat);
+        }
+      }
+      return [...seen.values()];
+    });
+  }, []);
+
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedQuery(query);
@@ -195,13 +224,14 @@ export default function BooksPage() {
       });
       setBooks(result.content);
       setPage(result);
+      mergeBookCategories(result.content);
     } catch (err) {
       setError('Failed to load books. Please try again.');
       logger.error('Failed to load books', err);
     } finally {
       setIsLoading(false);
     }
-  }, [debouncedQuery, currentPage, activeCategoryId, sortBy]);
+  }, [debouncedQuery, currentPage, activeCategoryId, sortBy, mergeBookCategories]);
 
   useEffect(() => {
     fetchBooks();
@@ -370,7 +400,15 @@ export default function BooksPage() {
             <>
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                 {books.map((book, index) => (
-                  <BookCard key={`${book.id}-${index}`} book={book} />
+                  <BookCard
+                    key={`${book.id}-${index}`}
+                    book={book}
+                    onCategoryClick={(categoryId) => {
+                      setActiveCategoryId(categoryId);
+                      setCurrentPage(0);
+                      router.replace(`/books?categoryId=${categoryId}`);
+                    }}
+                  />
                 ))}
               </div>
 
