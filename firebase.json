@@ -1,0 +1,43 @@
+{
+  "hosting": {
+    "public": "out",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "headers": [
+      {
+        "source": "/**",
+        "headers": [
+          {
+            "key": "Cross-Origin-Opener-Policy",
+            "value": "same-origin-allow-popups"
+          }
+        ]
+      }
+    ],
+    "rewrites": [
+      {
+        "source": "/books/placeholder",
+        "destination": "/books/placeholder/index.html"
+      },
+      {
+        "source": "/books/**",
+        "destination": "/books/placeholder/index.html"
+      },
+      {
+        "source": "/shelves/placeholder",
+        "destination": "/shelves/placeholder/index.html"
+      },
+      {
+        "source": "/shelves/**",
+        "destination": "/shelves/placeholder/index.html"
+      },
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}

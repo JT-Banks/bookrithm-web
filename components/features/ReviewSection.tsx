@@ -1,5 +1,7 @@
 'use client';
 
+/* eslint-disable react-hooks/set-state-in-effect */
+
 import { useState, useEffect, useCallback } from 'react';
 import { reviewsApi } from '@/lib/api/reviews';
 import { useAuth } from '@/lib/hooks/useAuth';

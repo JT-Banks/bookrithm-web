@@ -86,7 +86,7 @@ export default function RegisterPage() {
             Create your account
           </h1>
           <p className="mt-2 text-zinc-500 dark:text-zinc-400">
-            Every great story needs an author. Let's set yours up.
+            Every great story needs an author. Let&apos;s set yours up.
           </p>
         </div>
 

@@ -1,5 +1,7 @@
 'use client';
 
+/* eslint-disable react-hooks/set-state-in-effect */
+
 import { useState, useEffect, useRef } from 'react';
 import { suggestionsApi } from '@/lib/api/suggestions';
 import { categoriesApi } from '@/lib/api/categories';

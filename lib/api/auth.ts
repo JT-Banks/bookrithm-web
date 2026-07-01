@@ -73,28 +73,3 @@ export const authApi = {
     return apiClient.patch<UserResponse>('/users/me', data, true);
   },
 };
-
-/**
- * Helper function to check if user is registered
- * 
- * This is useful in the auth flow to decide whether to show
- * the registration page or the home page.
- * 
- * @returns Promise<boolean> - true if registered, false if not
- */
-export const isUserRegistered = async (): Promise<boolean> => {
-  try {
-    await authApi.getCurrentUser();
-    return true;  // User exists
-  } catch (error) {
-    // If we get a 404, user doesn't exist yet
-    // Any other error, we'll let it bubble up
-    if (error instanceof Error && 'statusCode' in error) {
-      const apiError = error as { statusCode: number };
-      if (apiError.statusCode === 404) {
-        return false;  // User doesn't exist
-      }
-    }
-    throw error;  // Re-throw other errors
-  }
-};

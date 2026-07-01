@@ -1,22 +1,13 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Allow Google Sign-In popup to communicate back to the page.
-  // Next.js sets Cross-Origin-Opener-Policy: same-origin by default,
-  // which blocks the OAuth popup's postMessage. This relaxes it just enough.
-  async headers() {
-    return [
-      {
-        source: "/(.*)",
-        headers: [
-          {
-            key: "Cross-Origin-Opener-Policy",
-            value: "same-origin-allow-popups",
-          },
-        ],
-      },
-    ];
-  },
+  // Static export for Firebase Hosting deployment.
+  output: 'export',
+  trailingSlash: true,
+
+  // next/image optimization requires a server — disable it for the static export.
+  // External cover images already use plain <img>; local assets are served as-is.
+  images: { unoptimized: true },
 };
 
 export default nextConfig;

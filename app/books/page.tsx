@@ -3,7 +3,7 @@
 /* eslint-disable @next/next/no-img-element, react-hooks/set-state-in-effect */
 
 import Image from 'next/image';
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { booksApi } from '@/lib/api/books';
@@ -166,7 +166,7 @@ function getShelfCopy(debouncedQuery: string, activeCategoryId: string | null, s
   return sortBy === 'READS' ? 'Most read in the catalog' : 'Most shelved in the catalog';
 }
 
-export default function BooksPage() {
+function BooksContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -440,5 +440,13 @@ export default function BooksPage() {
         </section>
       </div>
     </main>
+  );
+}
+
+export default function BooksPage() {
+  return (
+    <Suspense>
+      <BooksContent />
+    </Suspense>
   );
 }

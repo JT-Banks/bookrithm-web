@@ -1,5 +1,7 @@
 'use client';
 
+/* eslint-disable react-hooks/set-state-in-effect */
+
 import { createContext, useContext, useState, useEffect } from 'react';
 import type { UserResponse } from '@/types/api';
 import { apiClient } from '@/lib/api/client';
